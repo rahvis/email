@@ -76,6 +76,19 @@
 		"header": {
 			"submit": "提交需求"
 		},
+		"instances": {
+			"title": "实例",
+			"manage": "管理实例",
+			"add": "添加实例",
+			"name": "名称",
+			"namePlaceholder": "例如：生产环境",
+			"url": "URL",
+			"urlPlaceholder": "例如：https://mail.acme.com",
+			"current": "当前",
+			"noInstances": "暂无保存的实例",
+			"deleteConfirm": "确定移除「{name}」？",
+			"invalidUrl": "无效的URL"
+		},
 		"menu": {
 			"overview": "概览",
 			"market": "邮件营销",

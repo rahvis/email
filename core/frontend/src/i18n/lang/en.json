@@ -76,6 +76,19 @@
 		"header": {
 			"submit": "Submit a Request"
 		},
+		"instances": {
+			"title": "Instances",
+			"manage": "Manage Instances",
+			"add": "Add Instance",
+			"name": "Name",
+			"namePlaceholder": "e.g. Production",
+			"url": "URL",
+			"urlPlaceholder": "e.g. https://mail.acme.com",
+			"current": "Current",
+			"noInstances": "No saved instances",
+			"deleteConfirm": "Remove \"{name}\"?",
+			"invalidUrl": "Invalid URL"
+		},
 		"menu": {
 			"overview": "Overview",
 			"market": "Email Marketing",

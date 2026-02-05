@@ -68,6 +68,19 @@
 		"header": {
 			"submit": "リクエストを送信"
 		},
+		"instances": {
+			"title": "インスタンス",
+			"manage": "インスタンス管理",
+			"add": "インスタンス追加",
+			"name": "名前",
+			"namePlaceholder": "例：本番環境",
+			"url": "URL",
+			"urlPlaceholder": "例：https://mail.acme.com",
+			"current": "現在",
+			"noInstances": "保存されたインスタンスはありません",
+			"deleteConfirm": "「{name}」を削除しますか？",
+			"invalidUrl": "無効なURL"
+		},
 		"menu": {
 			"overview": "概要",
 			"market": "マーケティング",
