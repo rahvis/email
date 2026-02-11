@@ -18,9 +18,19 @@ const (
 
 // LipSyncConfig holds settings for the lip sync API.
 type LipSyncConfig struct {
-	APIKey    string // Sync Labs API key (env: SYNCLABS_API_KEY)
-	OutputDir string // directory to save output video
-	BaseURL   string // optional base URL override (for testing)
+	APIKey     string             // Sync Labs API key (env: SYNCLABS_API_KEY)
+	OutputDir  string             // directory to save output video
+	BaseURL    string             // optional base URL override (for testing)
+	HTTPClient *RateLimitedClient // optional rate-limited HTTP client
+}
+
+// doHTTP executes an HTTP request using the rate-limited client if configured,
+// otherwise falls back to http.DefaultClient.
+func (cfg LipSyncConfig) doHTTP(req *http.Request) (*http.Response, error) {
+	if cfg.HTTPClient != nil {
+		return cfg.HTTPClient.Do(req)
+	}
+	return http.DefaultClient.Do(req)
 }
 
 // lipSyncBase returns the configured or default Sync Labs base URL.
@@ -33,18 +43,18 @@ func (cfg LipSyncConfig) lipSyncBase() string {
 
 // LipSyncRequest is the payload for the lip sync API.
 type LipSyncRequest struct {
-	AudioURL    string `json:"audio_url"`    // URL to the narration audio
-	VideoURL    string `json:"video_url"`    // URL to the base video (talking head template)
-	Model       string `json:"model"`        // model to use (default: "sync-1.7.1-beta")
-	SynergizeAudio bool `json:"synergize_audio"` // enhance audio sync
+	AudioURL       string `json:"audio_url"`       // URL to the narration audio
+	VideoURL       string `json:"video_url"`       // URL to the base video (talking head template)
+	Model          string `json:"model"`           // model to use (default: "sync-1.7.1-beta")
+	SynergizeAudio bool   `json:"synergize_audio"` // enhance audio sync
 }
 
 // LipSyncResponse holds the API response.
 type LipSyncResponse struct {
-	ID        string `json:"id"`
-	Status    string `json:"status"`    // "pending", "processing", "completed", "failed"
-	VideoURL  string `json:"video_url"` // URL to the output video (when completed)
-	Error     string `json:"error"`
+	ID       string `json:"id"`
+	Status   string `json:"status"`    // "pending", "processing", "completed", "failed"
+	VideoURL string `json:"video_url"` // URL to the output video (when completed)
+	Error    string `json:"error"`
 }
 
 // DefaultLipSyncConfig returns config with API key from env.
@@ -104,7 +114,7 @@ func SubmitLipSync(ctx context.Context, cfg LipSyncConfig, audioURL, videoURL st
 	}
 	httpReq = httpReq.WithContext(ctx)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := cfg.doHTTP(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("lipsync API call: %w", err)
 	}
@@ -130,7 +140,7 @@ func CheckLipSyncStatus(ctx context.Context, cfg LipSyncConfig, jobID string) (*
 	}
 	httpReq = httpReq.WithContext(ctx)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := cfg.doHTTP(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("lipsync status API call: %w", err)
 	}
@@ -159,7 +169,7 @@ func DownloadLipSyncVideo(ctx context.Context, cfg LipSyncConfig, videoURL, file
 		return "", fmt.Errorf("create download request: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := cfg.doHTTP(req)
 	if err != nil {
 		return "", fmt.Errorf("download lipsync video: %w", err)
 	}

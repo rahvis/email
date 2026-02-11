@@ -116,6 +116,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
 	github.com/richardlehane/mscfb v1.0.6 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
+	github.com/sony/gobreaker/v2 v2.4.0 // indirect
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.45 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect

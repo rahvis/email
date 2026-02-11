@@ -185,6 +185,10 @@ func RunPipeline(ctx context.Context, job VideoJob) error {
 		return err
 	}
 
+	// Init rate-limited HTTP clients for external APIs
+	voiceClient := NewRateLimitedClient("cartesia", 5, 10, 30*time.Second)
+	lipSyncClient := NewRateLimitedClient("synclabs", 5, 10, 60*time.Second)
+
 	// 3. Script generation
 	updateJobStatus(ctx, job.ID, JobProcessing, "script", "")
 	scriptCfg := DefaultScriptConfig()
@@ -205,6 +209,7 @@ func RunPipeline(ctx context.Context, job VideoJob) error {
 	// 4. Voice clone + TTS
 	updateJobStatus(ctx, job.ID, JobProcessing, "voice", "")
 	voiceCfg := DefaultVoiceConfig(tmpDir)
+	voiceCfg.HTTPClient = voiceClient
 	voiceID, err := resolveVoiceID(ctx, voiceCfg)
 	if err != nil {
 		markFailed(ctx, job.ID, "voice", err)
@@ -239,6 +244,7 @@ func RunPipeline(ctx context.Context, job VideoJob) error {
 	// 6. Lip sync
 	updateJobStatus(ctx, job.ID, JobProcessing, "lipsync", "")
 	lipCfg := DefaultLipSyncConfig(tmpDir)
+	lipCfg.HTTPClient = lipSyncClient
 	finalVideoPath := compositeOut // default to composite if lip sync skipped
 
 	if lipCfg.APIKey != "" {

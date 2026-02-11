@@ -20,9 +20,19 @@ const (
 
 // VoiceConfig holds settings for voice operations.
 type VoiceConfig struct {
-	APIKey    string // Cartesia API key (env: CARTESIA_API_KEY)
-	OutputDir string // directory for audio output
-	BaseURL   string // optional base URL override (for testing)
+	APIKey     string             // Cartesia API key (env: CARTESIA_API_KEY)
+	OutputDir  string             // directory for audio output
+	BaseURL    string             // optional base URL override (for testing)
+	HTTPClient *RateLimitedClient // optional rate-limited HTTP client
+}
+
+// doHTTP executes an HTTP request using the rate-limited client if configured,
+// otherwise falls back to http.DefaultClient.
+func (cfg VoiceConfig) doHTTP(req *http.Request) (*http.Response, error) {
+	if cfg.HTTPClient != nil {
+		return cfg.HTTPClient.Do(req)
+	}
+	return http.DefaultClient.Do(req)
 }
 
 // voiceBaseURL returns the configured or default Cartesia base URL.
@@ -37,8 +47,8 @@ func (cfg VoiceConfig) voiceBaseURL() string {
 type VoiceCloneRequest struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Mode        string `json:"mode"`    // "url" or "clip"
-	AudioURL    string `json:"clip"`    // URL to source audio
+	Mode        string `json:"mode"`     // "url" or "clip"
+	AudioURL    string `json:"clip"`     // URL to source audio
 	Language    string `json:"language"` // e.g. "en"
 }
 
@@ -50,11 +60,11 @@ type VoiceCloneResponse struct {
 
 // TTSRequest is the payload for Cartesia text-to-speech.
 type TTSRequest struct {
-	VoiceID      string            `json:"voice_id"`
-	Transcript   string            `json:"transcript"`
-	ModelID      string            `json:"model_id"`
-	OutputFormat TTSOutputFormat   `json:"output_format"`
-	Language     string            `json:"language"`
+	VoiceID      string          `json:"voice_id"`
+	Transcript   string          `json:"transcript"`
+	ModelID      string          `json:"model_id"`
+	OutputFormat TTSOutputFormat `json:"output_format"`
+	Language     string          `json:"language"`
 }
 
 // TTSOutputFormat specifies the audio output format.
@@ -135,7 +145,7 @@ func CloneVoice(ctx context.Context, cfg VoiceConfig, name, audioURL string) (*V
 	}
 	httpReq = httpReq.WithContext(ctx)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := cfg.doHTTP(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("cartesia clone API call: %w", err)
 	}
@@ -174,7 +184,7 @@ func TextToSpeech(ctx context.Context, cfg VoiceConfig, voiceID, transcript, fil
 	}
 	httpReq = httpReq.WithContext(ctx)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := cfg.doHTTP(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("cartesia TTS API call: %w", err)
 	}
