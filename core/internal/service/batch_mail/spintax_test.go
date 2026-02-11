@@ -365,7 +365,7 @@ func TestGetSpintaxOptions(t *testing.T) {
 		{
 			name:    "brace no pipe",
 			content: "{nopipe}",
-			want:    map[string][]string{"{nopipe}": {"nopipe"}},
+			want:    map[string][]string{},
 		},
 		{
 			name:    "options with spaces trimmed",
@@ -376,6 +376,16 @@ func TestGetSpintaxOptions(t *testing.T) {
 			name:    "empty options filtered",
 			content: "{a||b}",
 			want:    map[string][]string{"{a||b}": {"a", "b"}},
+		},
+		{
+			name:    "skips CSS in style tag",
+			content: `<style>.btn{color|red}</style>{hello|world}`,
+			want:    map[string][]string{"{hello|world}": {"hello", "world"}},
+		},
+		{
+			name:    "skips JS in script tag",
+			content: `<script>var x={a|b}</script>{yes|no}`,
+			want:    map[string][]string{"{yes|no}": {"yes", "no"}},
 		},
 	}
 
