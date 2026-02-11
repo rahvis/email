@@ -22,6 +22,15 @@ const (
 type VoiceConfig struct {
 	APIKey    string // Cartesia API key (env: CARTESIA_API_KEY)
 	OutputDir string // directory for audio output
+	BaseURL   string // optional base URL override (for testing)
+}
+
+// voiceBaseURL returns the configured or default Cartesia base URL.
+func (cfg VoiceConfig) voiceBaseURL() string {
+	if cfg.BaseURL != "" {
+		return cfg.BaseURL
+	}
+	return cartesiaBaseURL
 }
 
 // VoiceCloneRequest is the payload for Cartesia voice cloning.
@@ -80,7 +89,7 @@ func BuildCloneRequest(cfg VoiceConfig, req VoiceCloneRequest) (*http.Request, e
 		return nil, fmt.Errorf("marshal clone request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", cartesiaBaseURL+cartesiaClonePath, bytes.NewReader(body))
+	httpReq, err := http.NewRequest("POST", cfg.voiceBaseURL()+cartesiaClonePath, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create clone request: %w", err)
 	}
@@ -99,7 +108,7 @@ func BuildTTSRequest(cfg VoiceConfig, req TTSRequest) (*http.Request, error) {
 		return nil, fmt.Errorf("marshal TTS request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", cartesiaBaseURL+cartesiaTTSPath, bytes.NewReader(body))
+	httpReq, err := http.NewRequest("POST", cfg.voiceBaseURL()+cartesiaTTSPath, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create TTS request: %w", err)
 	}

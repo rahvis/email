@@ -70,3 +70,7 @@ message_size_limit = 102400000
 ## Do not add configurations to the following configurations and will be deleted
 ## Do not delete the following identification configuration
 # Overrides-configuration #
+
+
+# User Overrides-configuration
+myhostname = test.billionmail.com

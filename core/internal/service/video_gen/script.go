@@ -17,8 +17,17 @@ const (
 
 // ScriptConfig holds settings for script generation.
 type ScriptConfig struct {
-	APIKey string // Anthropic API key (env: ANTHROPIC_API_KEY)
-	Model  string // model ID (default: claude-sonnet-4-5-20250929)
+	APIKey  string // Anthropic API key (env: ANTHROPIC_API_KEY)
+	Model   string // model ID (default: claude-sonnet-4-5-20250929)
+	BaseURL string // optional base URL override (for testing)
+}
+
+// scriptBaseURL returns the configured or default Anthropic base URL.
+func (cfg ScriptConfig) scriptBaseURL() string {
+	if cfg.BaseURL != "" {
+		return cfg.BaseURL
+	}
+	return anthropicBaseURL
 }
 
 // ScriptInput contains the data needed to generate a personalized video script.
@@ -138,7 +147,7 @@ func EstimateDuration(script string) int {
 // GenerateScript calls Claude API to generate a personalized video script.
 func GenerateScript(ctx context.Context, cfg ScriptConfig, input ScriptInput) (*ScriptOutput, error) {
 	config := openai.DefaultConfig(cfg.APIKey)
-	config.BaseURL = anthropicBaseURL
+	config.BaseURL = cfg.scriptBaseURL()
 	client := openai.NewClientWithConfig(config)
 
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{

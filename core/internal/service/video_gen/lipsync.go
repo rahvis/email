@@ -20,6 +20,15 @@ const (
 type LipSyncConfig struct {
 	APIKey    string // Sync Labs API key (env: SYNCLABS_API_KEY)
 	OutputDir string // directory to save output video
+	BaseURL   string // optional base URL override (for testing)
+}
+
+// lipSyncBase returns the configured or default Sync Labs base URL.
+func (cfg LipSyncConfig) lipSyncBase() string {
+	if cfg.BaseURL != "" {
+		return cfg.BaseURL
+	}
+	return lipSyncBaseURL
 }
 
 // LipSyncRequest is the payload for the lip sync API.
@@ -58,7 +67,7 @@ func BuildLipSyncRequest(cfg LipSyncConfig, req LipSyncRequest) (*http.Request, 
 		return nil, fmt.Errorf("marshal lipsync request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", lipSyncBaseURL+lipSyncPath, bytes.NewReader(body))
+	httpReq, err := http.NewRequest("POST", cfg.lipSyncBase()+lipSyncPath, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create lipsync request: %w", err)
 	}
@@ -71,7 +80,7 @@ func BuildLipSyncRequest(cfg LipSyncConfig, req LipSyncRequest) (*http.Request, 
 // BuildLipSyncStatusRequest constructs the HTTP request to check job status.
 // Exported for testing.
 func BuildLipSyncStatusRequest(cfg LipSyncConfig, jobID string) (*http.Request, error) {
-	url := fmt.Sprintf("%s%s/%s", lipSyncBaseURL, lipSyncPath, jobID)
+	url := fmt.Sprintf("%s%s/%s", cfg.lipSyncBase(), lipSyncPath, jobID)
 	httpReq, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create status request: %w", err)
