@@ -73,6 +73,11 @@ cd core/frontend && pnpm test
 cd core && go test -count=1 -short ./internal/service/... && cd frontend && pnpm test
 ```
 
+## Bug Memory Rules
+
+- NEVER use bare domain for mail infrastructure (DNS, certs, DKIM, dedicated IPs). Always use `public.FormatMX(domain)` to get the mail hostname (e.g., `mail.example.com`).
+- When adding new controllers, add the module name to the RBAC `modules` list in `core/internal/service/middlewares/rbac.go`.
+
 ## Commands
 
 - `/test` - Run full test suite
