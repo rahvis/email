@@ -458,6 +458,11 @@ func SyncRelayConfigsToPostfix(ctx context.Context) error {
 		return err
 	}
 
+	// 4. Rebuild DKIM signing config to exclude relay-mapped domains
+	if err := domains.RepairDKIMSigningConfig(ctx); err != nil {
+		g.Log().Warningf(ctx, "Failed to repair DKIM signing config after relay sync: %v", err)
+	}
+
 	return reloadPostfixConfigs(ctx)
 }
 
