@@ -138,6 +138,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.54.0
         version: 8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      '@unocss/postcss':
+        specifier: ^66.6.0
+        version: 66.6.0(postcss@8.5.6)
       '@unocss/preset-attributify':
         specifier: 66.6.0
         version: 66.6.0

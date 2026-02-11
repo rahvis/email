@@ -24,7 +24,7 @@ const routesReflectList = [
 const modules = import.meta.webpackContext('./modules', {
 	// Whether to search for subdirectories
 	recursive: false,
-	regExp: /\.ts$/,
+	regExp: /^[^.]+\.ts$/,
 })
 
 // Module routes

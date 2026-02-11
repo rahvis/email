@@ -63,6 +63,7 @@
 		"@types/prismjs": "^1.26.5",
 		"@typescript-eslint/eslint-plugin": "^8.54.0",
 		"@typescript-eslint/parser": "^8.54.0",
+		"@unocss/postcss": "^66.6.0",
 		"@unocss/preset-attributify": "66.6.0",
 		"@unocss/preset-icons": "66.6.0",
 		"@unocss/preset-uno": "66.6.0",
