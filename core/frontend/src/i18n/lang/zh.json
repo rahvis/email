@@ -111,7 +111,8 @@
 			"error_logs": "错误日志",
 			"sequences": "Sequences",
 			"leads": "Leads",
-			"enrichment": "Enrichment"
+			"enrichment": "Enrichment",
+			"videoOutreach": "视频外联"
 		}
 	},
 	"login": {
