@@ -114,9 +114,7 @@ func ProcessVideoJobs(ctx context.Context) {
 			updateJobStatus(ctx, job.ID, JobProcessing, "screenshot", "")
 			go func() {
 				defer func() { <-jobSem }()
-				if err := RunPipeline(ctx, job); err != nil {
-					g.Log().Error(ctx, fmt.Sprintf("video job %d failed: %v", job.ID, err))
-				}
+				RunPipeline(ctx, job) //nolint:errcheck // markFailed logs + persists errors
 			}()
 		default:
 			// Semaphore full, will pick up next poll cycle
@@ -136,12 +134,13 @@ func updateJobStatus(ctx context.Context, jobID int, status, phase, errMsg strin
 			"updated_at": time.Now(),
 		})
 	if err != nil {
-		g.Log().Warning(ctx, fmt.Sprintf("update video job %d: %v", jobID, err))
+		g.Log().Warningf(ctx, "update video job %d: %v", jobID, err)
 	}
 }
 
 // RunPipeline executes all video generation phases sequentially.
 func RunPipeline(ctx context.Context, job VideoJob) error {
+	g.Log().Infof(ctx, "video job %d starting pipeline for contact %d <%s>", job.ID, job.ContactID, job.ContactEmail)
 	tmpDir := fmt.Sprintf("/tmp/video_gen_%d", job.ID)
 	if err := os.MkdirAll(tmpDir, 0755); err != nil {
 		markFailed(ctx, job.ID, "setup", err)
@@ -300,6 +299,7 @@ func RunPipeline(ctx context.Context, job VideoJob) error {
 
 	// 9. Done
 	updateJobStatus(ctx, job.ID, JobCompleted, "upload", "")
+	g.Log().Infof(ctx, "video job %d completed: video=%s landing=%s", job.ID, videoURL, landingPageURL)
 
 	// Cleanup temp dir on success
 	os.RemoveAll(tmpDir)
@@ -307,8 +307,9 @@ func RunPipeline(ctx context.Context, job VideoJob) error {
 	return nil
 }
 
-// markFailed sets job status to failed with error message.
+// markFailed sets job status to failed with error message and logs it.
 func markFailed(ctx context.Context, jobID int, phase string, err error) {
+	g.Log().Errorf(ctx, "video job %d failed at %s: %v", jobID, phase, err)
 	updateJobStatus(ctx, jobID, JobFailed, phase, err.Error())
 }
 
