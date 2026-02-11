@@ -1104,8 +1104,7 @@ func (e *TaskExecutor) personalizeEmail(ctx context.Context, content string, tas
 	engine := GetTemplateEngine()
 
 	if task.Unsubscribe == 1 {
-		//domain := domains.GetBaseURLBySender(task.Addresser)
-		domain := domains.GetBaseURL()
+		domain := domains.GetBaseURLBySender(task.Addresser)
 
 		var contactGroupId int
 		contactGroupId = task.GroupId
@@ -1213,8 +1212,7 @@ func (e *TaskExecutor) sendEmail(ctx context.Context, task *entity.EmailTask, re
 	messageID := sender.GenerateMessageID()
 
 	//Tracking emails
-	//baseURL := domains.GetBaseURLBySender(currentTask.Addresser)
-	baseURL := domains.GetBaseURL()
+	baseURL := domains.GetBaseURLBySender(currentTask.Addresser)
 	mail_tracker := maillog_stat.NewMailTracker(renderedContent, currentTask.Id, messageID, recipient.Recipient, baseURL)
 	if currentTask.TrackClick == 1 {
 		mail_tracker.TrackLinks()
@@ -1286,8 +1284,7 @@ func (e *TaskExecutor) sendEmailMock(ctx context.Context, task *entity.EmailTask
 	messageID := sender.GenerateMessageID()
 
 	// Track email
-	//baseURL := domains.GetBaseURLBySender(task.Addresser)
-	baseURL := domains.GetBaseURL()
+	baseURL := domains.GetBaseURLBySender(task.Addresser)
 	mail_tracker := maillog_stat.NewMailTracker(renderedContent, task.Id, messageID, recipient.Recipient, baseURL)
 	if task.TrackClick == 1 {
 		mail_tracker.TrackLinks()
