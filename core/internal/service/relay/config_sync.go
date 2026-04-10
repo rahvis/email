@@ -424,7 +424,9 @@ func SyncRelayConfigsToPostfix(ctx context.Context) error {
 		return gerror.Wrap(err, "Failed to query active relay domain mappings count")
 	}
 
-	isActiveRelaySystem := activeConfigCount > 0 && activeMappingCount > 0
+	// Relay is considered "enabled" when there are active relay configs.
+	// Domain mappings are optional — a relay may exist without bound sender domains.
+	isActiveRelaySystem := activeConfigCount > 0
 	g.Log().Infof(ctx, "Relay system status: Active config count=%d, Active domain mapping count=%d, System enabled=%v",
 		activeConfigCount, activeMappingCount, isActiveRelaySystem)
 
