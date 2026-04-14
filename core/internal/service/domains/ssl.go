@@ -30,7 +30,7 @@ func ApplyLetsEncryptCertWithHttp(ctx context.Context, domain string, accountInf
 	// Find the existing certificate for the domain (including expired)
 	var crt *entity.Letsencrypt
 	g.DB().Model("letsencrypts").
-		Where("dns::jsonb ? $1", formattedDomain).
+		Where("dns::jsonb ?? ?", formattedDomain).
 		Order("endtime desc").
 		Limit(1).Scan(&crt)
 
@@ -60,7 +60,7 @@ func ApplyLetsEncryptCertWithHttp(ctx context.Context, domain string, accountInf
 			"status":     -1,
 		}
 		g.DB().Model("letsencrypts").
-			Where("dns::jsonb ? $1", formattedDomain).
+			Where("dns::jsonb ?? ?", formattedDomain).
 			Update(pdata)
 		return err
 	}
@@ -105,7 +105,7 @@ func ApplyLetsEncryptCertWithHttp(ctx context.Context, domain string, accountInf
 	// otherwise insert a new one. This prevents accumulating stale expired
 	// certificate records for the same domain.
 	affected, err := g.DB().Model("letsencrypts").
-		Where("dns::jsonb ? $1", public.FormatMX(domain)).
+		Where("dns::jsonb ?? ?", public.FormatMX(domain)).
 		Update(pdata)
 
 	if err != nil {
@@ -126,7 +126,7 @@ func ApplyLetsEncryptCertWithHttp(ctx context.Context, domain string, accountInf
 
 // FindSSLByDomain retrieves the SSL certificate information for a given domain.
 func FindSSLByDomain(domain string) (crt *entity.Letsencrypt, err error) {
-	err = g.DB().Model("letsencrypts").Where("dns::jsonb ? $1", public.FormatMX(domain)).Where("status = 1").Where("endtime > ?", time.Now().Unix()).Order("endtime desc").Limit(1).Scan(&crt)
+	err = g.DB().Model("letsencrypts").Where("dns::jsonb ?? ?", public.FormatMX(domain)).Where("status = 1").Where("endtime > ?", time.Now().Unix()).Order("endtime desc").Limit(1).Scan(&crt)
 	return
 }
 
@@ -260,7 +260,7 @@ func ApplyConsoleCert(ctx context.Context) error {
 	// Check for the existence of a certificate
 	crt := &entity.Letsencrypt{}
 	err = g.DB().Model("letsencrypts").
-		Where("dns::jsonb ? $1", hostname).
+		Where("dns::jsonb ?? ?", hostname).
 		Where("status = 1").
 		Where("endtime > ?", time.Now().Unix()).
 		Order("endtime desc").
@@ -343,7 +343,7 @@ func ApplyConsoleCert(ctx context.Context) error {
 	// Update existing record for this domain if one exists (including expired),
 	// otherwise insert a new one.
 	affected, err := g.DB().Model("letsencrypts").
-		Where("dns::jsonb ? $1", hostname).
+		Where("dns::jsonb ?? ?", hostname).
 		Update(pdata)
 
 	if err != nil {
@@ -426,7 +426,7 @@ func AutoRenewSSL(ctx context.Context) {
 			// No certificate file found, check if there's a DB record indicating a recent failed attempt
 			var dbCrt *entity.Letsencrypt
 			g.DB().Model("letsencrypts").
-				Where("dns::jsonb ? $1", formattedDomain).
+				Where("dns::jsonb ?? ?", formattedDomain).
 				Order("cert_id desc").
 				Limit(1).Scan(&dbCrt)
 
