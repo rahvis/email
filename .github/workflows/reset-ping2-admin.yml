@@ -184,7 +184,8 @@ jobs:
             https://159.89.33.85/api/login)"
 
           if ! grep -Eq '"success"[[:space:]]*:[[:space:]]*true|"code"[[:space:]]*:[[:space:]]*0|"token"[[:space:]]*:' <<<"${login_response}"; then
-            echo "External login verification failed"
+            echo "External login verification failed for admin username: ${admin_username}"
+            printf 'External login response: %s\n' "${login_response}"
             exit 1
           fi
 
