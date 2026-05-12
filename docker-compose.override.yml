@@ -1,0 +1,9 @@
+services:
+  core-billionmail:
+    image: local/billionmail-core:latest
+    build:
+      context: .
+      dockerfile: Dockerfiles/core/Dockerfile
+      args:
+        TARGETARCH: amd64
+    pull_policy: never
