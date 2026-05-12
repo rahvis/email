@@ -1,0 +1,147 @@
+name: Reset PING2 Admin Password
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.DROPLET_PORT || '22' }}" \
+            -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Reset and verify admin password
+        env:
+          HOST: ${{ secrets.DROPLET_HOST }}
+          USER: ${{ secrets.DROPLET_USER }}
+          PORT: ${{ secrets.DROPLET_PORT || '22' }}
+          NEW_PASSWORD: ${{ secrets.PING2_TEMP_ADMIN_PASSWORD }}
+          EXPECTED_PUBLIC_IP: 159.89.33.85
+          PASS_FILE: /tmp/ping2-admin-password-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${NEW_PASSWORD}" ]]; then
+            echo "PING2_TEMP_ADMIN_PASSWORD is required"
+            exit 1
+          fi
+
+          echo "::add-mask::${NEW_PASSWORD}"
+
+          umask 077
+          printf '%s' "${NEW_PASSWORD}" > /tmp/ping2-admin-password
+          scp -P "${PORT}" -i ~/.ssh/id_ed25519 /tmp/ping2-admin-password "${USER}@${HOST}:${PASS_FILE}"
+          rm -f /tmp/ping2-admin-password
+
+          ssh -p "${PORT}" -i ~/.ssh/id_ed25519 "${USER}@${HOST}" \
+            "PASS_FILE='${PASS_FILE}' EXPECTED_PUBLIC_IP='${EXPECTED_PUBLIC_IP}' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cleanup() {
+            rm -f "${PASS_FILE:-}"
+          }
+          trap cleanup EXIT
+
+          cd /opt/billionmail
+
+          actual_ip="$(curl -fsS --max-time 10 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address)"
+          if [[ "${actual_ip}" != "${EXPECTED_PUBLIC_IP}" ]]; then
+            echo "Refusing to reset password on unexpected host: ${actual_ip}"
+            exit 1
+          fi
+
+          if [[ ! -s "${PASS_FILE}" ]]; then
+            echo "Password file was not copied to the droplet"
+            exit 1
+          fi
+
+          NEW_PASSWORD="$(cat "${PASS_FILE}")"
+          rm -f "${PASS_FILE}"
+
+          if [[ ! "${NEW_PASSWORD}" =~ ^[A-Za-z0-9]{10}$ ]]; then
+            echo "Password must be exactly 10 alphanumeric characters"
+            exit 1
+          fi
+
+          bash /opt/billionmail/scripts/deploy.sh
+
+          ADMIN_USERNAME="$(sed -n 's/^ADMIN_USERNAME=//p' .env | tail -1)"
+          if [[ -z "${ADMIN_USERNAME}" ]]; then
+            echo "ADMIN_USERNAME was not found in /opt/billionmail/.env"
+            exit 1
+          fi
+
+          if grep -q '^ADMIN_PASSWORD=' .env; then
+            sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=${NEW_PASSWORD}|" .env
+          else
+            printf '\nADMIN_PASSWORD=%s\n' "${NEW_PASSWORD}" >> .env
+          fi
+
+          docker compose restart core-billionmail
+          sleep 10
+
+          for path in / /login /overview; do
+            body="$(curl -fsSL --max-time 20 "http://127.0.0.1${path}")"
+            if ! grep -q "PING2" <<<"${body}"; then
+              echo "Health check failed: ${path} did not include PING2"
+              exit 1
+            fi
+            echo "OK http://127.0.0.1${path}"
+          done
+
+          curl -fsS --max-time 20 http://127.0.0.1/api/languages/get >/tmp/billionmail-languages-health.json
+          echo "OK http://127.0.0.1/api/languages/get"
+
+          login_payload="$(printf '{"username":"%s","password":"%s"}' "${ADMIN_USERNAME}" "${NEW_PASSWORD}")"
+          login_response="$(curl -fsS --max-time 20 \
+            -H 'Content-Type: application/json' \
+            -d "${login_payload}" \
+            http://127.0.0.1/login)"
+
+          if ! grep -Eq '"success"[[:space:]]*:[[:space:]]*true|"code"[[:space:]]*:[[:space:]]*0|"token"[[:space:]]*:' <<<"${login_response}"; then
+            echo "Internal login verification failed"
+            exit 1
+          fi
+
+          current_head="$(git rev-parse HEAD)"
+          echo "Verified target IP: ${actual_ip}"
+          echo "Verified git HEAD: ${current_head}"
+          echo "Admin username: ${ADMIN_USERNAME}"
+          REMOTE
+
+      - name: External HTTPS verification
+        env:
+          NEW_PASSWORD: ${{ secrets.PING2_TEMP_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${NEW_PASSWORD}"
+
+          curl -k -fsSL --max-time 20 https://159.89.33.85/login | grep -q PING2
+          echo "OK https://159.89.33.85/login"
+
+          admin_username="$(ssh -p "${{ secrets.DROPLET_PORT || '22' }}" -i ~/.ssh/id_ed25519 \
+            "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "sed -n 's/^ADMIN_USERNAME=//p' /opt/billionmail/.env | tail -1")"
+
+          login_payload="$(printf '{"username":"%s","password":"%s"}' "${admin_username}" "${NEW_PASSWORD}")"
+          login_response="$(curl -k -fsS --max-time 20 \
+            -H 'Content-Type: application/json' \
+            -d "${login_payload}" \
+            https://159.89.33.85/login)"
+
+          if ! grep -Eq '"success"[[:space:]]*:[[:space:]]*true|"code"[[:space:]]*:[[:space:]]*0|"token"[[:space:]]*:' <<<"${login_response}"; then
+            echo "External login verification failed"
+            exit 1
+          fi
+
+          echo "External login verified for admin username: ${admin_username}"
