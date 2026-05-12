@@ -126,9 +126,7 @@ jobs:
             -e PGPASSWORD="${DBPASS}" \
             pgsql-billionmail \
             psql -U "${DBUSER}" -d "${DBNAME}" -t -A \
-            -v admin_username="${ADMIN_USERNAME}" \
-            -v password_hash="${BCRYPT_HASH}" \
-            -c "UPDATE account SET password = :'password_hash', update_time = EXTRACT(EPOCH FROM NOW())::INT WHERE username = :'admin_username' RETURNING account_id;" | tail -1)"
+            -c "UPDATE account SET password = '${BCRYPT_HASH}', update_time = EXTRACT(EPOCH FROM NOW())::INT WHERE username = '${ADMIN_USERNAME}' RETURNING account_id;" | tail -1)"
 
           if [[ -z "${updated_id}" ]]; then
             echo "Admin account row was not updated"
