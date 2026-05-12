@@ -4,7 +4,7 @@
 # Build context: repository root (see docker-compose.override.yml).
 
 # ---------- Stage 1: frontend ----------
-FROM node:20-alpine AS frontend
+FROM node:22-alpine AS frontend
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY core/frontend/package.json core/frontend/pnpm-lock.yaml ./
