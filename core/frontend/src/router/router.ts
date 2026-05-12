@@ -1,7 +1,22 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
-import { is, isDev } from '@/utils'
+import { isDev } from '@/utils'
 
-// Routes reflect list
+// Static imports for route modules — rspack does not evaluate
+// `import.meta.webpackContext` correctly in this build, so list explicitly.
+import apiRoute from '@/router/modules/api'
+import automationRoute from '@/router/modules/automation'
+import contactsRoute from '@/router/modules/contacts'
+import domainRoute from '@/router/modules/domain'
+import logsRoute from '@/router/modules/logs'
+import mailboxRoute from '@/router/modules/mailbox'
+import marketRoute from '@/router/modules/market'
+import overviewRoute from '@/router/modules/overview'
+import settingsRoute from '@/router/modules/settings'
+import smtpRoute from '@/router/modules/smtp'
+import templateRoute from '@/router/modules/template'
+import videoOutreachRoute from '@/router/modules/video-outreach'
+
+// Routes reflect list — controls display order in the sidebar.
 const routesReflectList = [
 	'Overview',
 	'Email Marketing',
@@ -20,30 +35,31 @@ const routesReflectList = [
 	'Video Outreach',
 ]
 
-// Import routes from modules
-const modules = import.meta.webpackContext('./modules', {
-	// Whether to search for subdirectories
-	recursive: false,
-	regExp: /^[^.]+\.ts$/,
-})
+const rawMenuList: RouteRecordRaw[] = [
+	apiRoute,
+	automationRoute,
+	contactsRoute,
+	domainRoute,
+	logsRoute,
+	mailboxRoute,
+	marketRoute,
+	overviewRoute,
+	settingsRoute,
+	smtpRoute,
+	templateRoute,
+	videoOutreachRoute,
+]
 
-// Module routes
-export let menuList: RouteRecordRaw[] = []
-
-// Iterate through the module list to generate module routes
-for (const path of modules.keys()) {
-	const mod = modules(path)
-	if (is<{ default: RouteRecordRaw }>(mod, 'Module')) {
-		menuList.push(mod.default)
-	}
-}
-
-// Sort module routes
-menuList = menuList.reduce((p: RouteRecordRaw[], v: RouteRecordRaw) => {
-	const routeIndex = routesReflectList.findIndex(item => item == v.meta!.title)
-	p[routeIndex] = v
-	return p
-}, [] as RouteRecordRaw[])
+// Sort module routes by routesReflectList; preserve any unknowns at the end.
+export let menuList: RouteRecordRaw[] = rawMenuList
+	.slice()
+	.sort((a, b) => {
+		const ai = routesReflectList.findIndex(t => t === a.meta?.title)
+		const bi = routesReflectList.findIndex(t => t === b.meta?.title)
+		const aw = ai === -1 ? Number.MAX_SAFE_INTEGER : ai
+		const bw = bi === -1 ? Number.MAX_SAFE_INTEGER : bi
+		return aw - bw
+	})
 
 const otherArray: RouteRecordRaw[] = []
 
