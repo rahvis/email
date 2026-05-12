@@ -106,7 +106,7 @@ jobs:
           login_response="$(curl -fsS --max-time 20 \
             -H 'Content-Type: application/json' \
             -d "${login_payload}" \
-            http://127.0.0.1/login)"
+            http://127.0.0.1/api/login)"
 
           if ! grep -Eq '"success"[[:space:]]*:[[:space:]]*true|"code"[[:space:]]*:[[:space:]]*0|"token"[[:space:]]*:' <<<"${login_response}"; then
             echo "Internal login verification failed"
@@ -137,7 +137,7 @@ jobs:
           login_response="$(curl -k -fsS --max-time 20 \
             -H 'Content-Type: application/json' \
             -d "${login_payload}" \
-            https://159.89.33.85/login)"
+            https://159.89.33.85/api/login)"
 
           if ! grep -Eq '"success"[[:space:]]*:[[:space:]]*true|"code"[[:space:]]*:[[:space:]]*0|"token"[[:space:]]*:' <<<"${login_response}"; then
             echo "External login verification failed"
