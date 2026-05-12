@@ -49,7 +49,7 @@ jobs:
 
           cleanup() {
             rm -f "${PASS_FILE:-}"
-            rm -f /opt/billionmail/core/.ping2_bcrypt_tmp.go
+            rm -f /opt/billionmail/core/ping2_bcrypt_tmp.go
           }
           trap cleanup EXIT
 
@@ -91,7 +91,7 @@ jobs:
           docker compose up -d --force-recreate core-billionmail
           sleep 10
 
-          cat > core/.ping2_bcrypt_tmp.go <<'GO'
+          cat > core/ping2_bcrypt_tmp.go <<'GO'
           package main
 
           import (
@@ -115,8 +115,8 @@ jobs:
             -v /opt/billionmail/core:/src \
             -w /src \
             golang:1.24-alpine \
-            go run ./.ping2_bcrypt_tmp.go)"
-          rm -f core/.ping2_bcrypt_tmp.go
+            go run ./ping2_bcrypt_tmp.go)"
+          rm -f core/ping2_bcrypt_tmp.go
 
           DBNAME="$(sed -n 's/^DBNAME=//p' .env | tail -1)"
           DBUSER="$(sed -n 's/^DBUSER=//p' .env | tail -1)"
