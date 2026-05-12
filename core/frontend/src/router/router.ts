@@ -51,15 +51,13 @@ const rawMenuList: RouteRecordRaw[] = [
 ]
 
 // Sort module routes by routesReflectList; preserve any unknowns at the end.
-export let menuList: RouteRecordRaw[] = rawMenuList
-	.slice()
-	.sort((a, b) => {
-		const ai = routesReflectList.findIndex(t => t === a.meta?.title)
-		const bi = routesReflectList.findIndex(t => t === b.meta?.title)
-		const aw = ai === -1 ? Number.MAX_SAFE_INTEGER : ai
-		const bw = bi === -1 ? Number.MAX_SAFE_INTEGER : bi
-		return aw - bw
-	})
+export let menuList: RouteRecordRaw[] = rawMenuList.slice().sort((a, b) => {
+	const ai = routesReflectList.findIndex(t => t === a.meta?.title)
+	const bi = routesReflectList.findIndex(t => t === b.meta?.title)
+	const aw = ai === -1 ? Number.MAX_SAFE_INTEGER : ai
+	const bw = bi === -1 ? Number.MAX_SAFE_INTEGER : bi
+	return aw - bw
+})
 
 const otherArray: RouteRecordRaw[] = []
 
@@ -81,6 +79,11 @@ export const routes: RouteRecordRaw[] = [
 		path: '/login',
 		name: 'Login',
 		component: () => import('@/views/login/index.vue'),
+	},
+	{
+		path: '/signup',
+		name: 'Signup',
+		component: () => import('@/views/signup/index.vue'),
 	},
 	...menuList,
 	...otherArray,

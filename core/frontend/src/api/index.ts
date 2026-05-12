@@ -22,7 +22,13 @@ const instance = axios.create({
 	},
 })
 
-const whitePathList = ['/login']
+const whitePathList = [
+	'/login',
+	'/signup',
+	'/get_validate_code',
+	'/languages/get',
+	'/languages/set',
+]
 
 // 存储所有请求的 AbortController
 const controllerStore = new Map<string, AbortController>()

@@ -31,6 +31,32 @@ type LoginRes struct {
 	} `json:"data"`
 }
 
+// SignupReq defines the request for public account signup
+type SignupReq struct {
+	g.Meta          `path:"/signup" method:"post" tags:"Authentication" summary:"Create account" sm:"Create account" in:"body"`
+	Username        string `p:"username" v:"required#Username cannot be empty" dc:"Username"`
+	Email           string `p:"email" v:"required|email#Email cannot be empty|Email must be valid" dc:"Email address"`
+	Password        string `p:"password" v:"required#Password cannot be empty" dc:"Password"`
+	ConfirmPassword string `p:"confirm_password" v:"required#Password confirmation cannot be empty" dc:"Password confirmation"`
+}
+
+// SignupRes defines the response for public account signup
+type SignupRes struct {
+	api_v1.StandardRes
+	Data struct {
+		Token        string `json:"token" dc:"JWT token"`
+		RefreshToken string `json:"refreshToken" dc:"Refresh token"`
+		TTL          int64  `json:"ttl" dc:"Token lifetime (in seconds)"`
+		AccountInfo  struct {
+			Id       int64  `json:"id" dc:"Account ID"`
+			Username string `json:"username" dc:"Username"`
+			Email    string `json:"email" dc:"Email address"`
+			Status   int    `json:"status" dc:"Account status"`
+			Lang     string `json:"lang" dc:"Preferred language"`
+		} `json:"accountInfo" dc:"Basic account information"`
+	} `json:"data"`
+}
+
 // LogoutReq defines the request for user logout
 type LogoutReq struct {
 	g.Meta        `path:"/logout" method:"post" tags:"Authentication" summary:"User logout" sm:"User logout" in:"body"`

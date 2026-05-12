@@ -12,7 +12,10 @@
 					<a href="#insights">Insights</a>
 				</div>
 				<div class="landing-nav-actions">
-					<router-link class="landing-link" to="/login">Sign in</router-link>
+					<router-link class="landing-link" to="/login">Log in</router-link>
+					<router-link v-if="!userStore.isLogin" class="landing-link" to="/signup"
+						>Sign up</router-link
+					>
 					<n-button type="primary" @click="goToApp">{{ heroCta }}</n-button>
 				</div>
 			</nav>
@@ -22,12 +25,15 @@
 					<div class="pill-tag-soft">Email operations</div>
 					<h1 class="display-xxl">Run high-volume email with product-grade control.</h1>
 					<p>
-						{{ BRAND.name }} brings mailbox management, campaign execution, delivery diagnostics, and API
-						sending into a single Stripe-inspired workspace for teams that need speed and visibility.
+						{{ BRAND.name }} brings mailbox management, campaign execution, delivery diagnostics,
+						and API sending into a single Stripe-inspired workspace for teams that need speed and
+						visibility.
 					</p>
 					<div class="hero-actions">
 						<n-button type="primary" size="large" @click="goToApp">{{ heroCta }}</n-button>
-						<router-link class="stripe-link" to="/login">Open console</router-link>
+						<router-link class="stripe-link" :to="userStore.isLogin ? '/overview' : '/login'">
+							{{ userStore.isLogin ? 'Open console' : 'Log in' }}
+						</router-link>
 					</div>
 				</div>
 
@@ -71,16 +77,16 @@
 					<div class="pill-tag-soft">Control</div>
 					<h2 class="display-lg">A clean command center for every sender.</h2>
 					<p>
-						Manage domains, mailboxes, SMTP relays, templates, subscribers, and API keys without switching
-						between operational tools.
+						Manage domains, mailboxes, SMTP relays, templates, subscribers, and API keys without
+						switching between operational tools.
 					</p>
 				</div>
 				<div class="feature-card cream">
 					<div class="pill-tag-soft">Precision</div>
 					<h2 class="display-lg">Numbers stay readable under pressure.</h2>
 					<p>
-						Tables, rates, and queues use tabular figures so operators can scan delivery, engagement, and
-						failure patterns quickly.
+						Tables, rates, and queues use tabular figures so operators can scan delivery,
+						engagement, and failure patterns quickly.
 					</p>
 				</div>
 				<div class="feature-card">
@@ -100,8 +106,8 @@
 					<div class="pill-tag-soft">Deliverability</div>
 					<h2 class="display-xl">Signals for the parts of email that usually stay hidden.</h2>
 					<p>
-						Watch provider performance, blacklist checks, DNS state, SSL status, delayed queues, and failed
-						sends from one dark-app dashboard surface.
+						Watch provider performance, blacklist checks, DNS state, SSL status, delayed queues, and
+						failed sends from one dark-app dashboard surface.
 					</p>
 				</div>
 				<div class="console-panel">
@@ -118,8 +124,8 @@
 				<div>
 					<h2 class="display-xl">Bring your sending stack into {{ BRAND.name }}.</h2>
 					<p>
-						Start from the console, connect domains and senders, then use the dashboard to keep campaign and
-						infrastructure work aligned.
+						Start from the console, connect domains and senders, then use the dashboard to keep
+						campaign and infrastructure work aligned.
 					</p>
 				</div>
 				<n-button type="primary" size="large" @click="goToApp">{{ heroCta }}</n-button>
@@ -142,10 +148,10 @@ import { useUserStore } from '@/store'
 const router = useRouter()
 const userStore = useUserStore()
 
-const heroCta = computed(() => (userStore.isLogin ? 'Go to dashboard' : 'Start now'))
+const heroCta = computed(() => (userStore.isLogin ? 'Go to dashboard' : 'Sign up'))
 
 const goToApp = () => {
-	router.push(userStore.isLogin ? '/overview' : '/login')
+	router.push(userStore.isLogin ? '/overview' : '/signup')
 }
 
 const navItems = ['Overview', 'Send API', 'Domains', 'Mailboxes']

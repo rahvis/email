@@ -3,9 +3,7 @@ import { setLanguage } from '@/i18n'
 import { clearPendingRequests } from '@/api'
 import router from '@/router/router'
 import loadingBar from '@/config/loadingBar'
-
-// Route white list
-const whitePathList = ['/', '/login']
+import { whitePathList } from '@/router/public'
 
 router.beforeEach(async (to, from, next) => {
 	loadingBar.start()
@@ -32,7 +30,7 @@ router.beforeEach(async (to, from, next) => {
 	// User is logged in
 	if (userStore.isLogin) {
 		// If the visited route is in the white list, jump to the home page
-		if (to.path === '/login') {
+		if (to.path === '/login' || to.path === '/signup') {
 			next('/overview')
 		} else {
 			next()

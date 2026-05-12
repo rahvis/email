@@ -17,6 +17,24 @@ export const login = (params: { username: string; password: string }) => {
 }
 
 /**
+ * @description 注册
+ * @param params
+ * @returns
+ */
+export const signup = (params: {
+	username: string
+	email: string
+	password: string
+	confirm_password: string
+}) => {
+	return instance.post('/signup', params, {
+		fetchOptions: {
+			successMessage: true,
+		},
+	})
+}
+
+/**
  * @description 退出登录
  * @param params
  * @returns

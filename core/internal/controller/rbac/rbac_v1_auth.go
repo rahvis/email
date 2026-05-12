@@ -7,11 +7,45 @@ import (
 	service "billionmail-core/internal/service/rbac"
 	"context"
 	"fmt"
+	"net/mail"
+	"regexp"
+	"strings"
+	"time"
+
 	"github.com/gogf/gf/util/gconv"
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"time"
+	"golang.org/x/crypto/bcrypt"
 )
+
+var signupUsernameRegexp = regexp.MustCompile(`^[A-Za-z0-9_]{4,32}$`)
+
+func normalizeSignupReq(req *v1.SignupReq) {
+	req.Username = strings.TrimSpace(req.Username)
+	req.Email = strings.TrimSpace(req.Email)
+}
+
+func validateSignupReq(req *v1.SignupReq) error {
+	if !signupUsernameRegexp.MatchString(req.Username) {
+		return fmt.Errorf("Username must be 4-32 characters and contain only letters, numbers, or underscores")
+	}
+
+	address, err := mail.ParseAddress(req.Email)
+	if err != nil || address.Address != req.Email {
+		return fmt.Errorf("Email must be valid")
+	}
+
+	if len(req.Password) < 8 {
+		return fmt.Errorf("Password must be at least 8 characters")
+	}
+
+	if req.Password != req.ConfirmPassword {
+		return fmt.Errorf("Passwords do not match")
+	}
+
+	return nil
+}
 
 // Login handles user login
 func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.LoginRes, err error) {
@@ -134,6 +168,135 @@ func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.Log
 		Log:  "The user:" + req.Username + " login was successful",
 		Data: res.Data,
 	})
+	return
+}
+
+// Signup creates a public account and signs it in.
+func (c *ControllerV1) Signup(ctx context.Context, req *v1.SignupReq) (res *v1.SignupRes, err error) {
+	res = &v1.SignupRes{}
+	normalizeSignupReq(req)
+
+	if validateErr := validateSignupReq(req); validateErr != nil {
+		res.SetError(validateErr)
+		return
+	}
+
+	language := "en"
+	status := 1
+	roleNames := []string{"admin"}
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		res.SetError(gerror.New("Failed to hash password"))
+		return
+	}
+
+	var accountId int64
+	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		usernameCount, err := tx.Model("account").Where("username = ?", req.Username).Count()
+		if err != nil {
+			return fmt.Errorf("Failed to check username")
+		}
+		if usernameCount > 0 {
+			return fmt.Errorf("Username already exists")
+		}
+
+		emailCount, err := tx.Model("account").Where("email = ?", req.Email).Count()
+		if err != nil {
+			return fmt.Errorf("Failed to check email")
+		}
+		if emailCount > 0 {
+			return fmt.Errorf("Email already exists")
+		}
+
+		now := time.Now().Unix()
+		adminRoleId := int64(0)
+		adminRoleIdVal, err := tx.Model("role").Where("role_name = ?", "admin").Value("role_id")
+		if err != nil {
+			return fmt.Errorf("Failed to check admin role")
+		}
+		if adminRoleIdVal == nil {
+			result, err := tx.Model("role").Data(g.Map{
+				"role_name":   "admin",
+				"description": "System administrator with full access",
+				"status":      1,
+				"create_time": now,
+				"update_time": now,
+			}).Insert()
+			if err != nil {
+				return fmt.Errorf("Failed to create admin role")
+			}
+			adminRoleId, err = result.LastInsertId()
+			if err != nil {
+				return fmt.Errorf("Failed to read admin role ID")
+			}
+		} else {
+			adminRoleId = adminRoleIdVal.Int64()
+		}
+
+		result, err := tx.Model("account").Data(g.Map{
+			"username":    req.Username,
+			"password":    string(passwordHash),
+			"email":       req.Email,
+			"status":      status,
+			"language":    language,
+			"create_time": now,
+			"update_time": now,
+		}).Insert()
+		if err != nil {
+			return fmt.Errorf("Failed to create account")
+		}
+
+		accountId, err = result.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("Failed to read account ID")
+		}
+
+		_, err = tx.Model("account_role").InsertIgnore(g.Map{
+			"account_id":  accountId,
+			"role_id":     adminRoleId,
+			"create_time": now,
+		})
+		if err != nil {
+			return fmt.Errorf("Failed to assign admin role")
+		}
+
+		return nil
+	})
+	if err != nil {
+		res.SetError(err)
+		return
+	}
+
+	token, _, err := service.JWT().GenerateToken(accountId, req.Username, roleNames)
+	if err != nil {
+		res.SetError(gerror.New("Failed to generate token"))
+		return
+	}
+
+	refreshToken, err := service.JWT().GenerateRefreshToken(accountId, req.Username)
+	if err != nil {
+		res.SetError(gerror.New("Failed to generate refresh token"))
+		return
+	}
+
+	res.Success = true
+	res.Code = 0
+	res.Msg = "Signup successful"
+	res.Data.Token = token
+	res.Data.RefreshToken = refreshToken
+	res.Data.TTL = gconv.Int64(service.JWT().AccessExpiry.Seconds())
+	res.Data.AccountInfo.Id = accountId
+	res.Data.AccountInfo.Username = req.Username
+	res.Data.AccountInfo.Email = req.Email
+	res.Data.AccountInfo.Status = status
+	res.Data.AccountInfo.Lang = language
+
+	_ = public.WriteLog(ctx, public.LogParams{
+		Type: consts.LOGTYPE.Login,
+		Log:  "The user:" + req.Username + " signup was successful",
+		Data: res.Data,
+	})
+
 	return
 }
 

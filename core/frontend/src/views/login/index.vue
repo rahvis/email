@@ -58,6 +58,11 @@
 					</n-button>
 				</n-form-item>
 			</n-form>
+
+			<p class="signup-link">
+				New to {{ BRAND.name }}?
+				<router-link to="/signup">Create an account</router-link>
+			</p>
 		</div>
 	</div>
 </template>
@@ -132,7 +137,8 @@ const loading = ref(false)
 
 interface LoginResponse {
 	token: string
-	refresh_token: string
+	refreshToken?: string
+	refresh_token?: string
 	ttl: number
 }
 
@@ -144,11 +150,11 @@ const handleLogin = async () => {
 		if (isObject<LoginResponse>(res)) {
 			userStore.setLoginInfo({
 				token: res.token,
-				refresh_token: res.refresh_token,
+				refresh_token: res.refresh_token || res.refreshToken || '',
 				ttl: res.ttl,
 			})
 			setTimeout(() => {
-				router.push('/')
+				router.push('/overview')
 			}, 1000)
 		}
 	} catch {
@@ -236,6 +242,18 @@ getCode()
 
 .login-submit {
 	margin-top: 4px;
+}
+
+.signup-link {
+	margin: 20px 0 0;
+	text-align: center;
+	color: var(--color-text-3);
+	font-size: 14px;
+
+	a {
+		color: var(--color-primary-1);
+		font-weight: 500;
+	}
 }
 
 .code {

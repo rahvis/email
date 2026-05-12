@@ -48,7 +48,7 @@ export default defineStore(
 				onConfirm: async () => {
 					await logoutApi()
 					resetLoginInfo()
-					router.push('/login')
+					router.push('/')
 				},
 			})
 		}
