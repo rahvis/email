@@ -6,7 +6,7 @@
 # ---------- Stage 1: frontend ----------
 FROM node:22-alpine AS frontend
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 COPY core/frontend/package.json core/frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY core/frontend ./
