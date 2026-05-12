@@ -183,11 +183,12 @@
 							</n-button>
 						</div>
 						<n-scrollbar style="height: calc(100% - 40px)">
-							<div v-if="previewStatus == 'view' && isChat" v-html="previewCode"></div>
+							<div v-if="previewStatus == 'view' && isChat" v-html="safePreviewCode"></div>
 							<iframe
 								v-else-if="previewStatus == 'view' && !isChat"
-								:srcdoc="previewCode"
+								:srcdoc="safePreviewCode"
 								frameborder="0"
+								sandbox=""
 								class="w-100%"
 								style="height: calc(100vh - 224px)"></iframe>
 							<BtEditor
@@ -220,6 +221,7 @@ import MarkdownRender from './components/MarkdownRender.vue'
 import { useTemplateStore } from './store'
 import { TemplateStore } from './dto'
 import BtEditor from '@/components/base/bt-editor/index.vue'
+import { sanitizeHtml } from '@/utils'
 const globalStore = useGlobalStore()
 const router = useRouter()
 const store = useTemplateStore()
@@ -246,6 +248,7 @@ const {
 const route = useRoute()
 
 const previewStatus = ref('view')
+const safePreviewCode = computed(() => sanitizeHtml(previewCode.value || ''))
 
 chatId.value = route.params.chatId as string
 

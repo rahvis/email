@@ -46,9 +46,12 @@ export default defineStore(
 				title: t('user.logout.title'),
 				content: t('user.logout.content'),
 				onConfirm: async () => {
-					await logoutApi()
-					resetLoginInfo()
-					router.push('/')
+					try {
+						await logoutApi(login.value.refresh_token)
+					} finally {
+						resetLoginInfo()
+						router.push('/')
+					}
 				},
 			})
 		}

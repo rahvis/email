@@ -104,6 +104,7 @@
 import Prism from 'prismjs'
 import 'prismjs/components/prism-log'
 import 'prismjs/themes/prism-tomorrow.css'
+import { escapeHtml } from '@/utils'
 
 // 扩展语言定义类型
 type Language = 'log'
@@ -338,8 +339,9 @@ const highlightedCode = computed(() => {
 		return highlighted
 	} catch (error) {
 		console.warn('代码高亮失败:', error)
-		highlightCache.value.set(cacheKey, processedCode.value)
-		return processedCode.value
+		const escaped = escapeHtml(processedCode.value)
+		highlightCache.value.set(cacheKey, escaped)
+		return escaped
 	}
 })
 
@@ -416,8 +418,9 @@ const highlightLine = (line: string): string => {
 		return highlighted
 	} catch (error) {
 		console.warn('代码高亮失败:', error)
-		highlightCache.value.set(cacheKey, line)
-		return line
+		const escaped = escapeHtml(line)
+		highlightCache.value.set(cacheKey, escaped)
+		return escaped
 	}
 }
 

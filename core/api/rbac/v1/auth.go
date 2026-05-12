@@ -61,6 +61,7 @@ type SignupRes struct {
 type LogoutReq struct {
 	g.Meta        `path:"/logout" method:"post" tags:"Authentication" summary:"User logout" sm:"User logout" in:"body"`
 	Authorization string `json:"authorization" dc:"Authorization" in:"header"`
+	RefreshToken  string `p:"refreshToken" dc:"Refresh token to invalidate"`
 }
 
 // LogoutRes defines the response for user logout

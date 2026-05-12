@@ -16,7 +16,7 @@ vi.mock('@/i18n', () => ({
 	},
 }))
 
-import { login, signup, logout, getValidateCode } from './user'
+import { login, signup, logout, refreshToken, getValidateCode } from './user'
 
 describe('user API', () => {
 	beforeEach(() => {
@@ -52,11 +52,11 @@ describe('user API', () => {
 		)
 	})
 
-	it('logout calls POST /logout with empty body', () => {
-		logout()
+	it('logout calls POST /logout with refresh token when available', () => {
+		logout('refresh-token')
 		expect(mockPost).toHaveBeenCalledWith(
 			'/logout',
-			{},
+			{ refreshToken: 'refresh-token' },
 			expect.objectContaining({
 				fetchOptions: expect.objectContaining({
 					loading: 'user.api.loading.logout',
@@ -64,6 +64,11 @@ describe('user API', () => {
 				}),
 			})
 		)
+	})
+
+	it('refreshToken calls POST /refresh-token with refresh token body', () => {
+		refreshToken('refresh-token')
+		expect(mockPost).toHaveBeenCalledWith('/refresh-token', { refreshToken: 'refresh-token' })
 	})
 
 	it('getValidateCode calls GET /get_validate_code', () => {

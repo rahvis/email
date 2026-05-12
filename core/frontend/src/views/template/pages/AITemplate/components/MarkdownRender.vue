@@ -36,6 +36,7 @@ import '../highlight.theme.css'
 import { removeHtmlCodeBlockMarkers, removeSignCode, saveCodeChange } from '../controller'
 import { TemplateStore } from '../dto'
 import { useClipboard } from '@vueuse/core'
+import { sanitizeHtml } from '@/utils'
 const { copy, copied } = useClipboard()
 const store = inject<TemplateStore>('modelStore')!
 const { currentChatRecordKey, previewCode } = store
@@ -49,7 +50,7 @@ const languageTit = ref('')
 const codeHtml = ref('')
 
 const md = markdownit({
-	html: true,
+	html: false,
 	linkify: true,
 	typographer: true,
 	langPrefix: 'language-',
@@ -67,11 +68,13 @@ const md = markdownit({
 	},
 })
 
-codeHtml.value = md.render(removeSignCode(props.content))
+const renderMarkdown = (value: string) => sanitizeHtml(md.render(removeSignCode(value)))
+
+codeHtml.value = renderMarkdown(props.content)
 watch(
 	() => props.content,
 	val => {
-		codeHtml.value = md.render(val)
+		codeHtml.value = renderMarkdown(val)
 		if (languageTit.value) {
 			emits('codeRender', {
 				code: props.content,

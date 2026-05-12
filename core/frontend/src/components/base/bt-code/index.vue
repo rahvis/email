@@ -11,6 +11,7 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import 'github-markdown-css'
 import { useCopy } from '@/hooks/useCopy'
+import { escapeHtml, sanitizeHtml } from '@/utils'
 
 const { code, language } = defineProps({
 	code: {
@@ -30,7 +31,7 @@ ${code}
 })
 
 const result = computed(() => {
-	return marked.parse(content.value)
+	return sanitizeHtml(String(marked.parse(content.value)))
 })
 
 const { copyText } = useCopy()
@@ -64,7 +65,7 @@ const highlightExtension = {
 			const highlighted = hljs.highlight(code, { language: lang }).value
 			return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`
 		}
-		return `<pre><code>${code}</code></pre>`
+		return `<pre><code>${escapeHtml(code)}</code></pre>`
 	},
 }
 

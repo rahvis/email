@@ -156,7 +156,24 @@ describe('UserStore', () => {
 			const call = vi.mocked(confirm).mock.calls[0][0]
 			await call.onConfirm?.()
 
-			expect(logoutApi).toHaveBeenCalled()
+			expect(logoutApi).toHaveBeenCalledWith('refresh')
+			expect(store.isLogin).toBeFalsy()
+			expect(router.push).toHaveBeenCalledWith('/')
+		})
+
+		it('still clears local auth when logout API fails', async () => {
+			vi.mocked(logoutApi).mockRejectedValueOnce(new Error('network failed'))
+			const store = useUserStore()
+			store.setLoginInfo({
+				token: 'token',
+				refresh_token: 'refresh',
+				ttl: 3600,
+			})
+
+			store.logout()
+			const call = vi.mocked(confirm).mock.calls[0][0]
+			await expect(call.onConfirm?.()).rejects.toThrow('network failed')
+
 			expect(store.isLogin).toBeFalsy()
 			expect(router.push).toHaveBeenCalledWith('/')
 		})

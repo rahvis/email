@@ -173,7 +173,10 @@ func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.Log
 	_ = public.WriteLog(ctx, public.LogParams{
 		Type: consts.LOGTYPE.Login,
 		Log:  "The user:" + req.Username + " login was successful",
-		Data: res.Data,
+		Data: g.Map{
+			"account_id": account.AccountId,
+			"username":   account.Username,
+		},
 	})
 	return
 }
@@ -302,7 +305,11 @@ func (c *ControllerV1) Signup(ctx context.Context, req *v1.SignupReq) (res *v1.S
 	_ = public.WriteLog(ctx, public.LogParams{
 		Type: consts.LOGTYPE.Login,
 		Log:  "The user:" + req.Username + " signup was successful",
-		Data: res.Data,
+		Data: g.Map{
+			"account_id": accountId,
+			"username":   req.Username,
+			"email":      req.Email,
+		},
 	})
 
 	return
@@ -312,18 +319,30 @@ func (c *ControllerV1) Signup(ctx context.Context, req *v1.SignupReq) (res *v1.S
 func (c *ControllerV1) Logout(ctx context.Context, req *v1.LogoutReq) (res *v1.LogoutRes, err error) {
 	res = &v1.LogoutRes{}
 
-	// Parse the token from the request
+	// Parse the access token from the request. JWT middleware has already
+	// required an access/API token for this endpoint, but parsing here gives us
+	// the JWT ID needed for blacklist invalidation.
 	claims, err := service.JWT().ParseToken(req.Authorization)
 	if err != nil {
-		res.SetError(gerror.New("Invalid or expired refresh token"))
+		res.SetError(gerror.New("Invalid or expired token"))
 		return
 	}
 
-	// Add token to blacklist
+	// Add access token to blacklist
 	err = service.JWT().InvalidateToken(claims)
 	if err != nil {
 		err = fmt.Errorf("Logout failed: %w", err)
 		return
+	}
+
+	if strings.TrimSpace(req.RefreshToken) != "" {
+		refreshClaims, parseErr := service.JWT().ParseToken(req.RefreshToken)
+		if parseErr == nil && refreshClaims.Subject == "refresh_token" {
+			if invalidateErr := service.JWT().InvalidateToken(refreshClaims); invalidateErr != nil {
+				err = fmt.Errorf("Logout failed: %w", invalidateErr)
+				return
+			}
+		}
 	}
 
 	// Destroy the session
@@ -353,6 +372,12 @@ func (c *ControllerV1) RefreshToken(ctx context.Context, req *v1.RefreshTokenReq
 	// Validate token type — only accept refresh tokens
 	if claims.Subject != "refresh_token" {
 		res.SetError(gerror.New("Invalid token type"))
+		return
+	}
+
+	account, accountErr := service.Account().GetById(ctx, claims.AccountId)
+	if accountErr != nil || account == nil || account.AccountId == 0 || account.Status != 1 {
+		res.SetError(gerror.New("Account is disabled or does not exist"))
 		return
 	}
 
@@ -388,6 +413,11 @@ func (c *ControllerV1) RefreshToken(ctx context.Context, req *v1.RefreshTokenReq
 	res.Data.Token = token
 	res.Data.RefreshToken = refreshToken
 	res.Data.TTL = gconv.Int64(service.JWT().AccessExpiry.Seconds())
+
+	if invalidateErr := service.JWT().InvalidateToken(claims); invalidateErr != nil {
+		res.SetError(gerror.New("Failed to rotate refresh token"))
+		return
+	}
 	grantSafePathPass(ctx)
 
 	return

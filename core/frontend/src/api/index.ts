@@ -25,10 +25,15 @@ const instance = axios.create({
 const whitePathList = [
 	'/login',
 	'/signup',
+	'/refresh-token',
 	'/get_validate_code',
 	'/languages/get',
 	'/languages/set',
 ]
+
+type RetryableRequestConfig = AxiosRequestConfig & {
+	_retry?: boolean
+}
 
 // 存储所有请求的 AbortController
 const controllerStore = new Map<string, AbortController>()
@@ -78,7 +83,9 @@ instance.interceptors.request.use(config => {
 instance.interceptors.request.use(config => {
 	const { fetchOptions } = config
 	if (isObject<FetchOptions>(fetchOptions)) {
-		config.url = `${fetchOptions.prefix}` + config.url
+		const prefix = fetchOptions.prefix || ''
+		const url = config.url || ''
+		config.url = url.startsWith(prefix) ? url : `${prefix}${url}`
 	}
 	return config
 })
@@ -93,9 +100,57 @@ instance.interceptors.request.use(config => {
 	return config
 })
 
+let refreshPromise: Promise<boolean> | null = null
+
+const redirectToLogin = () => {
+	const userStore = useUserStore()
+	userStore.resetLoginInfo()
+	if (router.currentRoute.value.path !== '/login') {
+		router.replace('/login')
+	}
+}
+
+const refreshAuthToken = async (): Promise<boolean> => {
+	const userStore = useUserStore()
+	const currentRefreshToken = userStore.login.refresh_token
+	if (!currentRefreshToken) {
+		return false
+	}
+
+	if (!refreshPromise) {
+		refreshPromise = instance
+			.post(
+				'/refresh-token',
+				{ refreshToken: currentRefreshToken },
+				{ fetchOptions: { successMessage: false } }
+			)
+			.then(res => {
+				if (
+					isObject<{ token: string; refreshToken?: string; refresh_token?: string; ttl: number }>(
+						res
+					)
+				) {
+					userStore.setLoginInfo({
+						token: res.token,
+						refresh_token: res.refresh_token || res.refreshToken || currentRefreshToken,
+						ttl: res.ttl,
+					})
+					return true
+				}
+				return false
+			})
+			.catch(() => false)
+			.finally(() => {
+				refreshPromise = null
+			})
+	}
+
+	return refreshPromise
+}
+
 // 成功、失败处理
 instance.interceptors.response.use(
-	response => {
+	async response => {
 		removeController(response.config)
 
 		const { fetchOptions } = response.config
@@ -131,28 +186,43 @@ instance.interceptors.response.use(
 			}
 			return Promise.resolve(data)
 		}
+		if (code === 401) {
+			const originalConfig = response.config as RetryableRequestConfig
+			const requestUrl = originalConfig.url || ''
+			const isRefreshRequest = requestUrl.endsWith('/refresh-token')
+			if (!originalConfig._retry && !isRefreshRequest) {
+				originalConfig._retry = true
+				const refreshed = await refreshAuthToken()
+				if (refreshed) {
+					return instance(originalConfig)
+				}
+			}
+			redirectToLogin()
+			return Promise.reject(response.data)
+		}
 		if (!success && msg) {
 			Message.error(msg, {
 				close: true,
 			})
 		}
-		if (code === 401) {
-			const userStore = useUserStore()
-			userStore.resetLoginInfo()
-			router.push('/login')
-		}
 		return Promise.reject(response.data)
 	},
-	error => {
+	async error => {
 		if (!axios.isCancel(error)) {
 			removeController(error.config || {})
 		}
 		if (error.response?.status === 401) {
-			const userStore = useUserStore()
-			userStore.resetLoginInfo()
-			if (router.currentRoute.value.path !== '/login') {
-				router.replace('/login')
+			const originalConfig = (error.config || {}) as RetryableRequestConfig
+			const requestUrl = originalConfig.url || ''
+			const isRefreshRequest = requestUrl.endsWith('/refresh-token')
+			if (!originalConfig._retry && !isRefreshRequest) {
+				originalConfig._retry = true
+				const refreshed = await refreshAuthToken()
+				if (refreshed) {
+					return instance(originalConfig)
+				}
 			}
+			redirectToLogin()
 		}
 		return Promise.reject(error)
 	}

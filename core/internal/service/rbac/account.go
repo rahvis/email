@@ -2,11 +2,13 @@ package rbac
 
 import (
 	"billionmail-core/internal/model"
+	"billionmail-core/internal/service/public"
 	"context"
 	"fmt"
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/util/gconv"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -14,6 +16,16 @@ type accountService struct{}
 
 func newAccountService() *accountService {
 	return &accountService{}
+}
+
+func accountRolesCacheKey(accountId int64) string {
+	return fmt.Sprintf("ACCOUNT_ROLES_%d", accountId)
+}
+
+func invalidateAccountRolesCache(accountId int64) {
+	if accountId > 0 {
+		public.RemoveCache(accountRolesCacheKey(accountId))
+	}
 }
 
 // GetList gets account list with pagination
@@ -95,12 +107,18 @@ func (s *accountService) Update(ctx context.Context, accountData *model.Account)
 		"language":    accountData.Language,
 		"update_time": time.Now().Unix(),
 	}).Where("account_id = ?", accountData.AccountId).Update()
+	if err == nil {
+		invalidateAccountRolesCache(accountData.AccountId)
+	}
 	return err
 }
 
 // Delete deletes an account
 func (s *accountService) Delete(ctx context.Context, accountId int64) error {
 	_, err := g.DB().Model("account").Where("account_id = ?", accountId).Delete()
+	if err == nil {
+		invalidateAccountRolesCache(accountId)
+	}
 	return err
 }
 
@@ -167,14 +185,20 @@ func (s *accountService) AssignRole(ctx context.Context, accountId int64, roleId
 	_, err := g.DB().Model("account_role").Data(g.Map{
 		"account_id":  accountId,
 		"role_id":     roleId,
-		"create_time": time.Now(),
+		"create_time": time.Now().Unix(),
 	}).Insert()
+	if err == nil {
+		invalidateAccountRolesCache(accountId)
+	}
 	return err
 }
 
 // ClearRoles clears all roles of an account
 func (s *accountService) ClearRoles(ctx context.Context, accountId int64) error {
 	_, err := g.DB().Model("account_role").Where("account_id = ?", accountId).Delete()
+	if err == nil {
+		invalidateAccountRolesCache(accountId)
+	}
 	return err
 }
 
@@ -198,13 +222,14 @@ func (s *accountService) BindRoles(ctx context.Context, accountId int64, roleIds
 		_, err = g.DB().Model("account_role").Data(g.Map{
 			"account_id":  accountId,
 			"role_id":     roleId,
-			"create_time": time.Now(),
+			"create_time": time.Now().Unix(),
 		}).Insert()
 		if err != nil {
 			return err
 		}
 	}
 
+	invalidateAccountRolesCache(accountId)
 	return nil
 }
 
@@ -212,7 +237,7 @@ func (s *accountService) BindRoles(ctx context.Context, accountId int64, roleIds
 func (s *accountService) GetRoles(ctx context.Context, accountId int64) ([]model.Role, error) {
 	var roles []model.Role
 	err := g.DB().Model("role").
-		LeftJoin("account_role", "role.id=account_role.role_id").
+		LeftJoin("account_role", "role.role_id=account_role.role_id").
 		Where("account_role.account_id = ?", accountId).
 		Scan(&roles)
 	return roles, err
@@ -222,7 +247,7 @@ func (s *accountService) GetRoles(ctx context.Context, accountId int64) ([]model
 func (s *accountService) GetPermissions(ctx context.Context, accountId int64) ([]model.Permission, error) {
 	var permissions []model.Permission
 	err := g.DB().Model("permission").
-		LeftJoin("role_permission", "permission.id=role_permission.permission_id").
+		LeftJoin("role_permission", "permission.permission_id=role_permission.permission_id").
 		LeftJoin("account_role", "role_permission.role_id=account_role.role_id").
 		Where("account_role.account_id = ?", accountId).
 		Scan(&permissions)
@@ -240,6 +265,9 @@ func (s *accountService) Login(ctx context.Context, username, password string) (
 	err := g.DB().Model("account").Where("username", username).Scan(&account)
 	if err != nil {
 		return nil, err
+	}
+	if account.AccountId == 0 || account.Status != 1 {
+		return nil, fmt.Errorf("invalid or disabled account")
 	}
 
 	// Verify password
@@ -278,40 +306,53 @@ func (s *accountService) IsAdmin(ctx context.Context, accountId int64) (bool, er
 // CountAdmins counts admin accounts
 func (s *accountService) CountAdmins(ctx context.Context) (int, error) {
 	count, err := g.DB().Model("account_role").
-		LeftJoin("role", "account_role.role_id=role.id").
-		Where("role.name = ?", "admin").
+		LeftJoin("role", "account_role.role_id=role.role_id").
+		Where("role.role_name = ?", "admin").
 		Count()
 	return count, err
 }
 
+func ctxVar(ctx context.Context, key string) (interface{}, bool) {
+	if req := g.RequestFromCtx(ctx); req != nil {
+		val := req.GetCtxVar(key)
+		if !val.IsNil() {
+			return val.Val(), true
+		}
+	}
+	if val := ctx.Value(key); val != nil {
+		return val, true
+	}
+	return nil, false
+}
+
 // GetCurrentAccountId gets the current user ID from context
 func GetCurrentAccountId(ctx context.Context) int64 {
-	value := ctx.Value("accountId")
-	if value == nil {
-		return 0
-	}
-
-	accountId, ok := value.(int64)
+	value, ok := ctxVar(ctx, "accountId")
 	if !ok {
 		return 0
 	}
-
-	return accountId
+	return gconv.Int64(value)
 }
 
 // GetCurrentRoles gets the current user roles from context
 func GetCurrentRoles(ctx context.Context) []string {
-	value := ctx.Value("roles")
-	if value == nil {
-		return []string{}
-	}
-
-	roles, ok := value.([]string)
+	value, ok := ctxVar(ctx, "roles")
 	if !ok {
 		return []string{}
 	}
 
-	return roles
+	switch roles := value.(type) {
+	case []string:
+		return roles
+	case []model.Role:
+		roleNames := make([]string, 0, len(roles))
+		for _, role := range roles {
+			roleNames = append(roleNames, role.RoleName)
+		}
+		return roleNames
+	default:
+		return gconv.Strings(value)
+	}
 }
 
 // GetCurrentAccount gets the current user account from context

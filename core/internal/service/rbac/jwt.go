@@ -277,6 +277,14 @@ func (s *JWTService) JWTAuthMiddleware(r *ghttp.Request) {
 	r.SetCtxVar("accountId", claims.AccountId)
 	r.SetCtxVar("username", claims.Username)
 
+	account, err := Account().GetById(r.GetCtx(), claims.AccountId)
+	if err != nil || account == nil || account.AccountId == 0 || account.Status != 1 {
+		resp.Msg = "account disabled or not found"
+		r.Response.WriteJson(resp)
+		r.Exit()
+		return
+	}
+
 	// Retrieve roles from cache or database
 	cacheKey := fmt.Sprintf("ACCOUNT_ROLES_%d", claims.AccountId)
 	roles := public.GetCache(cacheKey)

@@ -116,19 +116,14 @@ func init() {
 			adminRoleId = adminRoleIdVal.Int64()
 		}
 
-		// Create admin account if it doesn't exist
+		// Create or update the configured bootstrap admin account. Do not select an
+		// arbitrary account by admin role: public signup also creates admin-role
+		// users, and startup must never overwrite those accounts.
 		adminId := int64(0)
-
-		// Find admin account from account_role table
-		adminIdVal, err := g.DB().Model("account_role").Where("role_id = ?", adminRoleId).Value("account_id")
-
-		if err != nil || adminIdVal == nil {
-			// Find admin account from account table
-			adminIdVal, err = g.DB().Model("account").Where("username = ?", adminUsername).Value("account_id")
-		}
+		adminIdVal, err := g.DB().Model("account").Where("username = ?", adminUsername).Value("account_id")
 
 		if err != nil {
-			g.Log().Error(context.Background(), "Failed to check admin role:", err)
+			g.Log().Error(context.Background(), "Failed to check configured admin account:", err)
 			return
 		}
 

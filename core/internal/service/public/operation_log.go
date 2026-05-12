@@ -38,6 +38,12 @@ type LogParams struct {
 }
 
 func GetCurrentAccountId(ctx context.Context) int64 {
+	req := g.RequestFromCtx(ctx)
+	if req != nil {
+		if value := req.GetCtxVar("accountId"); !value.IsNil() {
+			return value.Int64()
+		}
+	}
 	value := ctx.Value("accountId")
 	if value == nil {
 		return 0
