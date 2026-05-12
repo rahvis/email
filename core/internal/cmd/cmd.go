@@ -131,6 +131,21 @@ var (
 
 			// Create a new server instance
 			s := g.Server(consts.DEFAULT_SERVER_NAME)
+			isFrontendHistoryRequest := func(r *ghttp.Request) bool {
+				if r.Method != http.MethodGet && r.Method != http.MethodHead {
+					return false
+				}
+				if r.IsFileRequest() {
+					return false
+				}
+				path := r.URL.Path
+				return !strings.HasPrefix(path, "/api/") &&
+					!strings.HasPrefix(path, "/roundcube/") &&
+					!strings.HasPrefix(path, "/rspamd/") &&
+					!strings.HasPrefix(path, "/.well-known/") &&
+					!strings.HasPrefix(path, "/pmta/") &&
+					path != "/landing/video"
+			}
 
 			// Use Redis for session storage
 			// s.SetSessionStorage(gsession.NewStorageRedis(g.Redis()))
@@ -203,6 +218,10 @@ var (
 							r.ExitAll()
 							return
 						}
+					}
+
+					if isFrontendHistoryRequest(r) {
+						r.URL.Path = "/index.html"
 					}
 				},
 				// ghttp.HookAfterServe: func(r *ghttp.Request) {},
@@ -392,15 +411,7 @@ var (
 			// The static server returns 404 for history-mode SPA routes such as /login.
 			// Fall back to the Vue entrypoint for non-file GET/HEAD requests.
 			s.BindStatusHandler(404, func(r *ghttp.Request) {
-				if r.Method != http.MethodGet && r.Method != http.MethodHead {
-					return
-				}
-				if r.IsFileRequest() ||
-					strings.HasPrefix(r.URL.Path, "/api/") ||
-					strings.HasPrefix(r.URL.Path, "/roundcube/") ||
-					strings.HasPrefix(r.URL.Path, "/rspamd/") ||
-					strings.HasPrefix(r.URL.Path, "/.well-known/") ||
-					strings.HasPrefix(r.URL.Path, "/pmta/") {
+				if !isFrontendHistoryRequest(r) {
 					return
 				}
 				serveSPAIndex(r)
