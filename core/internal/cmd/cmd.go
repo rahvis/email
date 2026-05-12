@@ -367,8 +367,7 @@ var (
 				maillog_stat.CampaignEventHandler(r, r.Get("any").String())
 			})
 
-			// Add static file handler
-			s.BindHandler("/*any", func(r *ghttp.Request) {
+			serveSPAIndex := func(r *ghttp.Request) {
 				if strings.HasPrefix(r.URL.Path, "/api/") {
 					r.Response.WriteHeader(404)
 					return
@@ -385,6 +384,26 @@ var (
 				}
 
 				r.Response.ServeFile("public/dist/index.html")
+			}
+
+			// Add static file handler
+			s.BindHandler("/*any", serveSPAIndex)
+
+			// The static server returns 404 for history-mode SPA routes such as /login.
+			// Fall back to the Vue entrypoint for non-file GET/HEAD requests.
+			s.BindStatusHandler(404, func(r *ghttp.Request) {
+				if r.Method != http.MethodGet && r.Method != http.MethodHead {
+					return
+				}
+				if r.IsFileRequest() ||
+					strings.HasPrefix(r.URL.Path, "/api/") ||
+					strings.HasPrefix(r.URL.Path, "/roundcube/") ||
+					strings.HasPrefix(r.URL.Path, "/rspamd/") ||
+					strings.HasPrefix(r.URL.Path, "/.well-known/") ||
+					strings.HasPrefix(r.URL.Path, "/pmta/") {
+					return
+				}
+				serveSPAIndex(r)
 			})
 
 			// Generate self-signed certificate if not exists
