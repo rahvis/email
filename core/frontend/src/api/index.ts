@@ -141,6 +141,13 @@ instance.interceptors.response.use(
 		if (!axios.isCancel(error)) {
 			removeController(error.config || {})
 		}
+		if (error.response?.status === 401) {
+			const userStore = useUserStore()
+			userStore.resetLoginInfo()
+			if (router.currentRoute.value.path !== '/login') {
+				router.replace('/login')
+			}
+		}
 		return Promise.reject(error)
 	}
 )
