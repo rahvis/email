@@ -87,7 +87,7 @@ jobs:
             printf '\nADMIN_PASSWORD=%s\n' "${NEW_PASSWORD}" >> .env
           fi
 
-          docker compose restart core-billionmail
+          docker compose up -d --force-recreate core-billionmail
           sleep 10
 
           for path in / /login /overview; do
