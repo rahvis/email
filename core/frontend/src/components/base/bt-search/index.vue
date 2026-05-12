@@ -52,3 +52,10 @@ defineExpose({
 	},
 })
 </script>
+
+<style lang="scss" scoped>
+.bt-search {
+	--n-height: 40px;
+	--n-border-radius: var(--radius-sm);
+}
+</style>

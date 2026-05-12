@@ -1,13 +1,16 @@
 <template>
-	<div class="login-container">
+	<div class="login-container stripe-mesh">
+		<router-link class="login-brand" to="/">
+			<img src="@/assets/images/logo.png" alt="" />
+			<span>{{ BRAND.name }}</span>
+		</router-link>
 		<div class="login-card">
 			<div class="logo-container">
-				<div class="logo">
-					<img class="w-full" src="@/assets/images/logo.png" />
-				</div>
+				<img class="logo" src="@/assets/images/logo.png" alt="" />
 			</div>
 
-			<h2 class="login-title">BillionMail</h2>
+			<h1 class="login-title">{{ BRAND.name }}</h1>
+			<p class="login-subtitle">Sign in to manage your email infrastructure.</p>
 
 			<n-form ref="formRef" size="large" :model="form" :rules="rules">
 				<n-form-item :show-label="false" path="username">
@@ -46,7 +49,7 @@
 					<n-button
 						type="primary"
 						size="large"
-						class="font-bold"
+						class="login-submit"
 						:loading="loading"
 						:disabled="loading"
 						:block="true"
@@ -63,6 +66,7 @@
 import { useUserStore } from '@/store'
 import { isObject } from '@/utils'
 import { getValidateCode, login } from '@/api/modules/user'
+import { BRAND } from '@/config/brand'
 
 const { t } = useI18n()
 
@@ -159,95 +163,102 @@ getCode()
 
 <style lang="scss" scoped>
 .login-container {
-	--text-dark: var(--color-text-1);
-	--text-light: var(--color-text-2);
-	--accent-green: #25cdb1;
-	--accent-purple: #7e6ed5;
-	--border-light: #ddd;
-}
-
-.login-container {
 	display: flex;
 	position: relative;
 	justify-content: center;
 	align-items: center;
 	min-height: 100%;
-	background: var(--color-bg-3);
+	padding: 96px 24px 48px;
+	background: var(--color-bg-1);
 	overflow: hidden;
-	&::before {
-		content: '';
-		position: absolute;
-		top: -15%;
-		right: -15%;
-		width: 40vw;
-		height: 40vw;
-		border-radius: 50%;
-		background-color: var(--accent-green);
-		z-index: 0;
-	}
-	&::after {
-		content: '';
-		position: absolute;
-		left: -15%;
-		bottom: -15%;
-		width: 40vw;
-		height: 40vw;
-		border-radius: 50%;
-		background-color: var(--accent-purple);
-		z-index: 0;
+}
+
+.login-brand {
+	position: absolute;
+	top: 24px;
+	left: 32px;
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	color: var(--color-text-1);
+	font-size: 18px;
+	font-weight: 400;
+
+	img {
+		width: 32px;
+		height: 32px;
+		object-fit: contain;
 	}
 }
 
 .login-card {
 	width: 100%;
-	max-width: 400px;
+	max-width: 420px;
 	background-color: var(--color-bg-1);
-	padding: 52px 32px 62px;
-	border-radius: 8px;
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+	padding: 44px 36px 40px;
+	border: 1px solid rgba(255, 255, 255, 0.72);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-floating);
+	backdrop-filter: blur(16px);
 	z-index: 1;
 }
 
-.logo {
+.logo-container {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 70px;
+	margin-bottom: 20px;
+}
 
-	&-container {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	&-icon {
-		width: 24px;
-		height: 24px;
-		color: white;
-	}
-
-	&-text {
-		font-size: 20px;
-		font-weight: 600;
-		color: var(--text-dark);
-	}
+.logo {
+	width: 62px;
+	height: 62px;
+	object-fit: contain;
 }
 
 .login-title {
 	margin-top: 0;
-	margin-bottom: 32px;
+	margin-bottom: 8px;
 	text-align: center;
-	font-weight: 500;
-	color: var(--text-dark);
+	font-size: 32px;
+	font-weight: 300;
+	line-height: 1.1;
+	letter-spacing: -0.64px;
+	color: var(--color-text-1);
+}
+
+.login-subtitle {
+	margin: 0 0 28px;
+	text-align: center;
+	color: var(--color-text-3);
+	font-size: 15px;
+}
+
+.login-submit {
+	margin-top: 4px;
 }
 
 .code {
 	width: 120px;
 	height: 40px;
 	margin-left: 12px;
-	border-radius: 4px;
-	border: 1px solid #dcdfe6;
+	border-radius: var(--radius-sm);
+	border: 1px solid var(--color-border-2);
 	overflow: hidden;
 	cursor: pointer;
+}
+
+@media (max-width: 640px) {
+	.login-container {
+		padding: 88px 16px 32px;
+	}
+
+	.login-brand {
+		left: 18px;
+	}
+
+	.login-card {
+		padding: 36px 22px 30px;
+	}
 }
 </style>

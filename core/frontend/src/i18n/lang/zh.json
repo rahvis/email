@@ -116,7 +116,7 @@
 		}
 	},
 	"login": {
-		"title": "BillionMail",
+		"title": "PING2",
 		"form": {
 			"usernamePlaceholder": "用户名",
 			"passwordPlaceholder": "密码",
@@ -446,7 +446,7 @@
 			"useAiTools": "使用人工智能工具帮您自动生成邮件内容，提升工作您的效率",
 			"create": "创建",
 			"notices": {
-				"domainListEmpty": "请先为BillionMail创建第一个用于发件的域名",
+				"domainListEmpty": "请先为PING2创建第一个用于发件的域名",
 				"aiConfigurationInvalid": "当前并未配置AI大模型，您无法使用AI模型创建邮件模板",
 				"invalidBrandDomain": "请先为域名创建品牌信息"
 			},
@@ -459,7 +459,7 @@
 			"title": "AI 模板",
 			"welcomeMessage": "您可以说：创建一份欢迎用户加入{domain}的欢迎邮件",
 			"greeting": "让我们创建一个漂亮的邮件模板。",
-			"brandName": "BillionMail",
+			"brandName": "PING2",
 			"buttons": {
 				"regenerate": "重新生成",
 				"info": "信息",
@@ -870,8 +870,8 @@
 			"addTitle": "添加域名",
 			"editTitle": "编辑域名",
 			"domain": "域名",
-			"domainPlaceholder": "请输入域名，例如：billionmail.com",
-			"urlsPlacement": "请输入域名，例如：http://billionmail.com",
+			"domainPlaceholder": "请输入域名，例如：ping2.email",
+			"urlsPlacement": "请输入域名，例如：http://ping2.email",
 			"aRecord": "A记录",
 			"aRecordPlaceholder": "请输入A记录，例如：mailAapanelCom",
 			"quota": "域名配额",

@@ -107,7 +107,7 @@
 		}
 	},
 	"login": {
-		"title": "BillionMail",
+		"title": "PING2",
 		"form": {
 			"usernamePlaceholder": "ユーザー名",
 			"passwordPlaceholder": "パスワード",
@@ -424,7 +424,7 @@
 			"useAiTools": "AIツールを使用してメールコンテンツを自動生成し、作業効率を向上させます。",
 			"create": "作成",
 			"notices": {
-				"domainListEmpty": "BillionMailでメール送信用の最初のドメインを作成してください",
+				"domainListEmpty": "PING2でメール送信用の最初のドメインを作成してください",
 				"aiConfigurationInvalid": "現在AIモデルが設定されていないため、AIモデルを使用してメールテンプレートを作成できません",
 				"invalidBrandDomain": "まずドメインのブランド情報を作成してください"
 			},
@@ -437,7 +437,7 @@
 			"title": "AIテンプレート",
 			"welcomeMessage": "例：{domain}に参加するユーザー向けのウェルカムメールを作成してください",
 			"greeting": "美しいメールテンプレートを作成しましょう。",
-			"brandName": "BillionMail",
+			"brandName": "PING2",
 			"buttons": {
 				"regenerate": "再生成",
 				"info": "情報",

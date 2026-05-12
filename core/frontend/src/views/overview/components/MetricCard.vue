@@ -33,12 +33,17 @@ defineProps({
 }
 
 .title {
-	margin-bottom: 15px;
-	font-size: 18px;
+	margin-bottom: 12px;
+	color: var(--color-text-3);
+	font-size: 13px;
 	font-weight: 400;
+	letter-spacing: -0.39px;
 }
 
 .value {
-	font-size: 20px;
+	font-size: 26px;
+	font-weight: 300;
+	letter-spacing: -0.26px;
+	font-feature-settings: 'tnum', 'ss01';
 }
 </style>

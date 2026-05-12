@@ -797,13 +797,13 @@ const [, drop] = useDrop<DropBaseBlock, void>(() => ({
 	align-items: center;
 	justify-content: center;
 	height: 104px;
-	border: 2px dashed #1890ff;
+	border: 2px dashed #533afd;
 	background-color: rgba(24, 144, 255, 0.05);
 	border-radius: 4px;
 	transition: all 0.2s ease;
 
 	.placeholder-content {
-		color: #1890ff;
+		color: #533afd;
 		font-size: 14px;
 		text-align: center;
 

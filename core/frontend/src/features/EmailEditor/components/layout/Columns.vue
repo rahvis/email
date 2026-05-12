@@ -323,7 +323,7 @@ onUnmounted(() => {
 			width: 2px;
 			height: 100%;
 			transform: translateX(-50%);
-			background-color: #0871c2;
+			background-color: #4434d4;
 			opacity: 0.5;
 			transition: all 0.2s ease;
 			cursor: col-resize;

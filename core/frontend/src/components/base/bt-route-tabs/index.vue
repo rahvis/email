@@ -62,9 +62,13 @@ addTab(route)
 
 <style lang="scss" scoped>
 .route-tabs {
-	--n-tab-gap: 32px;
-	--n-tab-padding: 12px 4px;
+	--n-tab-gap: 10px;
+	--n-tab-padding: 8px 16px;
 	--n-pane-padding-top: 16px;
 	--n-tab-border-color: var(--color-border-1);
+
+	:deep(.n-tabs-tab) {
+		border-radius: var(--radius-pill);
+	}
 }
 </style>

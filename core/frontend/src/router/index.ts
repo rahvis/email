@@ -1,12 +1,11 @@
 import { useGlobalStore, useUserStore } from '@/store'
 import { setLanguage } from '@/i18n'
 import { clearPendingRequests } from '@/api'
-import { routes } from '@/router/router'
 import router from '@/router/router'
 import loadingBar from '@/config/loadingBar'
 
 // Route white list
-const whitePathList = ['/login']
+const whitePathList = ['/', '/login']
 
 router.beforeEach(async (to, from, next) => {
 	loadingBar.start()
@@ -23,11 +22,7 @@ router.beforeEach(async (to, from, next) => {
 		setLanguage(globalStore.lang)
 	}
 
-	// Check if the visited route exists in the registered routes
-	const routeExists = routes.some(route => route.path === to.path)
-
-	// If the route does not exist, go directly
-	if (!routeExists) {
+	if (!to.matched.length) {
 		next()
 		return
 	}
@@ -37,8 +32,8 @@ router.beforeEach(async (to, from, next) => {
 	// User is logged in
 	if (userStore.isLogin) {
 		// If the visited route is in the white list, jump to the home page
-		if (whitePathList.includes(to.path)) {
-			next('/')
+		if (to.path === '/login') {
+			next('/overview')
 		} else {
 			next()
 		}

@@ -99,7 +99,7 @@ const [Modal, modalApi] = useModal({
 	transition: border-color 0.3s;
 
 	&:hover {
-		border-color: #1890ff;
+		border-color: #533afd;
 	}
 
 	.drag-placeholder {

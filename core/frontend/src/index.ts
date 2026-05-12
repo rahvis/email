@@ -4,6 +4,7 @@ import pinia from '@/store'
 import router from '@/router'
 import App from '@/App.vue'
 
+import '@fontsource-variable/inter'
 import '@unocss/reset/normalize.css'
 import '@/styles/uno.css'
 import '@/styles/index.scss'

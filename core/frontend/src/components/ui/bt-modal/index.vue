@@ -13,7 +13,7 @@
 		:style="{ width: formatLength(width) }"
 		@after-leave="onAfterLeave">
 		<template #header>{{ title }}</template>
-		<div :style="{ maxHeight: maxScrollHeight, overflow: 'auto' }">
+		<div class="bt-modal-body" :style="{ maxHeight: maxScrollHeight, overflow: 'auto' }">
 			<slot></slot>
 		</div>
 		<template v-if="footer" #action>
@@ -112,3 +112,11 @@ const onAfterLeave = () => {
 	props.onAfterLeave?.()
 }
 </script>
+
+<style lang="scss" scoped>
+.bt-modal-body {
+	color: var(--color-text-1);
+	font-size: 15px;
+	line-height: 1.4;
+}
+</style>

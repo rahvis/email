@@ -1,6 +1,6 @@
 <template>
-	<div>
-		<n-flex v-if="slotLeft || slotRight" class="items-center mb-12px" justify="space-between">
+	<div class="bt-table-layout app-card">
+		<n-flex v-if="slotLeft || slotRight" class="bt-table-toolbar items-center" justify="space-between">
 			<n-flex class="items-center" :size="12">
 				<slot name="toolsLeft"></slot>
 			</n-flex>
@@ -29,3 +29,13 @@ const slotRight = !!useSlots().toolsRight
 // Check if <slot name="pageRight"/> has a value
 const slotPage = !!useSlots().pageLeft || !!useSlots().pageRight
 </script>
+
+<style lang="scss" scoped>
+.bt-table-layout {
+	padding: var(--space-xl);
+}
+
+.bt-table-toolbar {
+	margin-bottom: var(--space-lg);
+}
+</style>

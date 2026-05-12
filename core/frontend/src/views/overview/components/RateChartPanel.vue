@@ -1,7 +1,7 @@
 <template>
 	<n-card :title="$t('overview.rate.openRate')">
 		<line-chart
-			chart-color="#1a519b"
+			chart-color="#533afd"
 			:date-type="open.column_type"
 			:chart-name="$t('overview.rate.openRate')"
 			:chart-data="openRateData">
@@ -9,7 +9,7 @@
 	</n-card>
 	<n-card :title="$t('overview.rate.clickRate')">
 		<line-chart
-			chart-color="#1a519b"
+			chart-color="#665efd"
 			:date-type="click.column_type"
 			:chart-name="$t('overview.rate.clickRate')"
 			:chart-data="clickRateData">
@@ -17,7 +17,7 @@
 	</n-card>
 	<n-card :title="$t('overview.rate.bounceRate')">
 		<line-chart
-			chart-color="#20a53a"
+			chart-color="#ea2261"
 			:date-type="bounce.column_type"
 			:chart-name="$t('overview.rate.bounceRate')"
 			:chart-data="bounceRateData">

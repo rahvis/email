@@ -45,23 +45,23 @@ export default defineComponent({
 		const typeMap = {
 			success: {
 				icon: () => <SuccessIcon></SuccessIcon>,
-				color: '#20a53a',
+				color: 'var(--color-success-1)',
 			},
 			error: {
 				icon: () => <ErrorIcon></ErrorIcon>,
-				color: '#E85445',
+				color: 'var(--color-error-1)',
 			},
 			warning: {
 				icon: () => <WarningIcon></WarningIcon>,
-				color: '#e6a23c',
+				color: 'var(--color-warning-1)',
 			},
 			info: {
 				icon: () => <InfoIcon></InfoIcon>,
-				color: '#2080F0',
+				color: 'var(--color-info-1)',
 			},
 			loading: {
 				icon: () => <NBaseLoading clsPrefix="bt" strokeWidth={24} scale={0.85}></NBaseLoading>,
-				color: '#20a53a',
+				color: 'var(--color-primary-1)',
 			},
 		}
 

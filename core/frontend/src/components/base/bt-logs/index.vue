@@ -878,7 +878,7 @@ const lineNumberWidth = computed(() => {
 	contain: layout style paint;
 
 	&.highlighted {
-		background: #3b82f6;
+		background: #533afd;
 		color: #fff;
 		margin: 0 -0.75rem;
 		padding: 0 0.75rem;

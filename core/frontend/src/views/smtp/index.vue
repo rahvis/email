@@ -13,7 +13,7 @@
 					<i class="i-mdi-chevron-down text-17px"></i>
 				</n-button>
 			</n-dropdown>
-			<bt-help href="https://www.billionmail.com/start/smtp.html" :text="$t('smtp.description')">
+			<bt-help href="https://ping2.email/start/smtp.html" :text="$t('smtp.description')">
 			</bt-help>
 		</div>
 		<smtp-loading v-if="loading"></smtp-loading>

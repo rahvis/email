@@ -4,7 +4,7 @@
 			<n-button class="icon-btn" :bordered="false" @click="handleCollapse">
 				<i class="icon" :class="isCollapse ? 'i-mdi-menu-close' : 'i-mdi-menu-open'"></i>
 			</n-button>
-			<n-button type="primary" text class="text-14px" @click="handleGoIssues">
+			<n-button type="primary" secondary class="header-pill" @click="handleGoIssues">
 				{{ t('layout.header.submit') }}
 				<i class="i-mdi:arrow-right ml-1px"></i>
 			</n-button>
@@ -29,7 +29,7 @@
 					<i class="icon i-mdi-user-outline"></i>
 				</n-button>
 			</n-dropdown>
-			<n-button type="primary" text class="text-14px" @click="handleGoVersion">
+			<n-button type="primary" text class="header-version" @click="handleGoVersion">
 				{{ version }}
 			</n-button>
 		</div>
@@ -43,6 +43,7 @@ import { useUserStore, useGlobalStore, useThemeStore } from '@/store'
 import InstanceSwitcher from './InstanceSwitcher.vue'
 import { getVersionInfo } from '@/api/modules/settings'
 import { isObject } from '@/utils'
+import { BRAND } from '@/config/brand'
 
 defineProps({
 	top: {
@@ -68,7 +69,7 @@ const handleCollapse = () => {
 }
 
 const handleGoIssues = () => {
-	window.open('https://github.com/aaPanel/BillionMail/issues')
+	window.open(BRAND.issuesUrl)
 }
 
 const langOptions = ref<DropdownOption[]>([])
@@ -98,7 +99,7 @@ const handleUserAction = (key: string) => {
 }
 
 const handleGoVersion = () => {
-	window.open('https://github.com/aaPanel/BillionMail/releases')
+	window.open(BRAND.releasesUrl)
 }
 
 const getLangOptions = async () => {
@@ -113,7 +114,7 @@ const getLangOptions = async () => {
 const getVersion = async () => {
 	const res = await getVersionInfo()
 	if (isObject<{ version: string }>(res)) {
-		version.value = `v${res.version}`
+		version.value = res.version ? `v${res.version}` : '--'
 	}
 }
 
@@ -132,9 +133,12 @@ onMounted(() => {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	height: 48px;
-	padding: 0 20px 0 12px;
-	box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	height: 56px;
+	padding: 0 24px 0 16px;
+	border-bottom: 1px solid var(--color-border-1);
+	background: rgba(255, 255, 255, 0.84);
+	box-shadow: var(--shadow-level-1);
+	backdrop-filter: blur(18px);
 	z-index: 1000;
 }
 
@@ -154,10 +158,19 @@ onMounted(() => {
 
 .icon-btn {
 	--n-width: 42px;
-	--n-height: 48px;
+	--n-height: 42px;
 	--n-padding: 0;
-	--n-font-size: 22px;
+	--n-font-size: 21px;
 	--n-text-color: var(--color-text-4);
 	--n-ripple-color: none;
+}
+
+.header-pill {
+	--n-height: 34px;
+}
+
+.header-version {
+	font-size: 14px;
+	font-weight: 400;
 }
 </style>

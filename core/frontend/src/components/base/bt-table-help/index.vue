@@ -24,12 +24,14 @@
 </template>
 
 <script lang="ts" setup>
+import { BRAND } from '@/config/brand'
+
 const handleGoIssues = () => {
-	window.open('https://github.com/aaPanel/BillionMail/issues')
+	window.open(BRAND.issuesUrl)
 }
 
 const handleGoStar = () => {
-	window.open('https://github.com/aaPanel/BillionMail')
+	window.open(BRAND.githubUrl)
 }
 </script>
 

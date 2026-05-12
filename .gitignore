@@ -44,6 +44,7 @@ core/frontend/.claude/
 # Frontend dev artifacts
 core/frontend/.pnpm-store/
 core/frontend/coverage/
+core/frontend/auto-imports.d.ts
 
 # Python
 __pycache__/

@@ -49,7 +49,7 @@ const remove = () => {
 	bottom: -36px;
 	right: 0;
 	display: flex;
-	background-color: #1890ff;
+	background-color: #533afd;
 	border-radius: 4px 4px 0 0;
 	z-index: 101;
 

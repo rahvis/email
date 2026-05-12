@@ -77,7 +77,7 @@ const chartOptions = computed<ECOptionLine>(() => {
 				type: 'line',
 				data: subscribe.value.map(item => item.count),
 				itemStyle: {
-					color: '#20a53a',
+					color: '#533afd',
 				},
 				smooth: true,
 				showSymbol: false,
@@ -91,8 +91,8 @@ const chartOptions = computed<ECOptionLine>(() => {
 						y2: 1,
 						global: false,
 						colorStops: [
-							{ offset: 0, color: 'rgba(32, 164, 58, 0.4)' },
-							{ offset: 0.7, color: 'rgba(32, 164, 58, 0)' },
+							{ offset: 0, color: 'rgba(83, 58, 253, 0.4)' },
+							{ offset: 0.7, color: 'rgba(83, 58, 253, 0)' },
 						],
 					},
 				},

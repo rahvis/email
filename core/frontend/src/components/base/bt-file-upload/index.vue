@@ -172,7 +172,7 @@ const updateProgress = (e: { progress?: number }) => {
 		justify-content: center;
 		width: 40px;
 		height: 40px;
-		border-radius: 4px;
+		border-radius: var(--radius-pill);
 		background-color: var(--color-bg-4);
 		font-size: 16px;
 		transition:
@@ -183,7 +183,7 @@ const updateProgress = (e: { progress?: number }) => {
 	:deep(.drag-text) {
 		margin-top: 16px;
 		font-size: 14px;
-		font-weight: 500;
+		font-weight: 400;
 	}
 
 	:deep(.drag-suffix) {

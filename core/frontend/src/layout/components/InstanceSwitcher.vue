@@ -74,7 +74,7 @@
 <script lang="ts" setup>
 import { DropdownOption } from 'naive-ui'
 import { useInstanceStore } from '@/store'
-import type { BillionMailInstance } from '@/store/modules/instance'
+import type { Ping2Instance } from '@/store/modules/instance'
 
 const { t } = useI18n()
 const instanceStore = useInstanceStore()
@@ -138,7 +138,7 @@ const handleAdd = () => {
 	newUrl.value = ''
 }
 
-const startEdit = (inst: BillionMailInstance) => {
+const startEdit = (inst: Ping2Instance) => {
 	editingId.value = inst.id
 	editName.value = inst.name
 	editUrl.value = inst.url
@@ -163,9 +163,10 @@ const saveEdit = (id: string) => {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 8px;
-	border-radius: 4px;
-	background: var(--color-bg-2, #f5f5f5);
+	padding: 10px 12px;
+	border: 1px solid var(--color-border-1);
+	border-radius: var(--radius-md);
+	background: var(--color-bg-2);
 }
 
 .instance-info {
@@ -178,12 +179,12 @@ const saveEdit = (id: string) => {
 	align-items: center;
 	gap: 6px;
 	font-size: 13px;
-	font-weight: 500;
+	font-weight: 400;
 }
 
 .instance-url {
 	font-size: 11px;
-	color: var(--color-text-3, #999);
+	color: var(--color-text-3);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -203,13 +204,13 @@ const saveEdit = (id: string) => {
 
 .add-form-title {
 	font-size: 13px;
-	font-weight: 600;
+	font-weight: 400;
 	margin-bottom: 8px;
 }
 
 .url-error {
 	font-size: 11px;
-	color: var(--n-error-color, #d03050);
+	color: var(--color-error-1);
 	margin-top: 2px;
 }
 </style>

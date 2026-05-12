@@ -116,7 +116,7 @@
 		}
 	},
 	"login": {
-		"title": "BillionMail",
+		"title": "PING2",
 		"form": {
 			"usernamePlaceholder": "Username",
 			"passwordPlaceholder": "Password",
@@ -442,7 +442,7 @@
 			"useAiTools": "Use AI tools to help you automatically generate email content and improve your work efficiency.",
 			"create": "Create",
 			"notices": {
-				"domainListEmpty": "Please create the first domain for BillionMail to send emails",
+				"domainListEmpty": "Please create the first domain for PING2 to send emails",
 				"aiConfigurationInvalid": "AI large model is not currently configured, you cannot use AI model to create email templates",
 				"invalidBrandDomain": "Please create brand information for the domain first"
 			},
@@ -455,7 +455,7 @@
 			"title": "AI Template",
 			"welcomeMessage": "You can say: Create a welcome email for users joining {domain}",
 			"greeting": "Let's create a beautiful email template.",
-			"brandName": "BillionMail",
+			"brandName": "PING2",
 			"buttons": {
 				"regenerate": "Regenerate",
 				"info": "Info",
@@ -884,8 +884,8 @@
 			"addTitle": "Add Domain",
 			"editTitle": "Edit Domain",
 			"domain": "Domain",
-			"domainPlaceholder": "Please enter domain, e.g.: billionmail.com",
-			"urlsPlacement": "Please enter url, e.g.: https://billionmail.com",
+			"domainPlaceholder": "Please enter domain, e.g.: ping2.email",
+			"urlsPlacement": "Please enter url, e.g.: https://ping2.email",
 			"aRecord": "A Record",
 			"aRecordPlaceholder": "Please enter A record, e.g.: mail.aapanel.com",
 			"quota": "Domain Quota",

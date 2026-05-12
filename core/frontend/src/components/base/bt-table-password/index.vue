@@ -9,7 +9,7 @@
 			<div class="ml-6px text-15px cursor-pointer" title="Show" @click="onToggle">
 				<i :class="show ? 'i-mdi-eye-outline' : 'i-mdi-eye-off-outline'"></i>
 			</div>
-			<div class="reset ml-6px text-15px cursor-pointer text-#333" title="Copy" @click="onCopy">
+			<div class="reset ml-6px text-15px cursor-pointer text-basic" title="Copy" @click="onCopy">
 				<i class="i-mdi-content-copy"></i>
 			</div>
 		</div>

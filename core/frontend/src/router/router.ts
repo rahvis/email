@@ -73,13 +73,14 @@ if (isDev) {
 
 export const routes: RouteRecordRaw[] = [
 	{
+		path: '/',
+		name: 'Landing',
+		component: () => import('@/views/landing/index.vue'),
+	},
+	{
 		path: '/login',
 		name: 'Login',
 		component: () => import('@/views/login/index.vue'),
-	},
-	{
-		path: '/',
-		redirect: '/overview',
 	},
 	...menuList,
 	...otherArray,

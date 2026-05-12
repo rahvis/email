@@ -85,14 +85,14 @@ const chartOptions = computed(() => {
 				name: fail.label,
 				data: fail.value,
 				stack: 'total',
-				itemStyle: { color: '#1A519B' },
+				itemStyle: { color: '#ea2261' },
 			},
 			{
 				type: 'bar',
 				name: success.label,
 				data: success.value,
 				stack: 'total',
-				itemStyle: { color: '#91CC75' },
+				itemStyle: { color: '#533afd' },
 			},
 		],
 	}

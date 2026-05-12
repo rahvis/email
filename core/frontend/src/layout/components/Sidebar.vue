@@ -13,8 +13,8 @@
 		<!-- 应用标志和名称 -->
 		<div class="app-logo" :class="{ collapse: isCollapse }">
 			<a href="/">
-				<img class="icon" src="@/assets/images/logo.png"></img>
-				<span v-show="!isCollapse" class="app-name">BillionMail</span>
+				<img class="icon" src="@/assets/images/logo-white.png"></img>
+				<span v-show="!isCollapse" class="app-name">{{ BRAND.name }}</span>
 			</a>
 		</div>
 
@@ -50,6 +50,7 @@ import { storeToRefs } from 'pinia'
 import { RouterLink } from 'vue-router'
 import { useMenuStore, useGlobalStore, useUserStore } from '@/store'
 import { menuList } from '@/router/router'
+import { BRAND } from '@/config/brand'
 
 const { t } = useI18n()
 
@@ -144,14 +145,15 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .n-layout-sider {
-	box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+	border-right: 1px solid rgba(255, 255, 255, 0.08);
+	box-shadow: rgba(0, 0, 0, 0.18) 0 8px 24px;
 	z-index: 1010;
 }
 
 .app-logo {
 	display: flex;
-	padding: 16px 24px;
-	border-bottom: 1px solid var(--color-border-1);
+	padding: 18px 20px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	transition: all 0.3s ease;
 
 	&.collapse {
@@ -162,17 +164,20 @@ onMounted(() => {
 	a {
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: 12px;
 	}
 
 	.icon {
-		width: 36px;
+		width: 34px;
+		height: 34px;
+		object-fit: contain;
 	}
 	
 	.app-name {
 		font-size: 19px;
-		font-weight: bold;
-		color: var(--color-text-5);
+		font-weight: 400;
+		letter-spacing: -0.2px;
+		color: #fff;
 	}
 }
 
@@ -182,25 +187,26 @@ onMounted(() => {
 }
 
 .footer-section {
-	border-top: 1px solid var(--color-border-1);
+	border-top: 1px solid rgba(255, 255, 255, 0.08);
 	transition: all 0.3s ease;
 }
 
 .n-menu {
 	--n-item-height: 48px;
 	--n-font-size: 14px;
-	padding: 16px 0;
+	padding: 16px 10px;
 
 	:deep(.n-menu-item) {
 		margin-top: 0;
-		margin-bottom: 8px;
+		margin-bottom: 6px;
 
 		&:last-of-type {
 			margin-bottom: 0;
 		}
 
 		.n-menu-item-content {
-			padding-right: 24px;
+			padding-right: 18px;
+			border-radius: var(--radius-pill);
 			line-height: 24px;
 		}
 	}

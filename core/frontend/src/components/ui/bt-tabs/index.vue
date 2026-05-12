@@ -22,11 +22,12 @@ const menu = defineModel<string | number>('value')
 		.n-tabs-wrapper {
 			.n-tabs-tab-wrapper {
 				.n-tabs-tab {
-					height: 32px;
+					height: 34px;
+					border-radius: var(--radius-pill);
 					border-bottom: none;
-					background: -webkit-gradient(linear, 0% 0, 0% 100%, from(#f6f6f6), to(#ddd));
+					background: var(--color-bg-2);
 					&--active {
-						background: #0000;
+						background: var(--color-bg-1);
 					}
 				}
 			}

@@ -172,7 +172,7 @@ watch(
 		&:hover {
 			&::after {
 				opacity: 1;
-				border: 2px solid #4eaef8;
+				border: 2px solid #665efd;
 			}
 
 			.drag-handle {
@@ -185,7 +185,7 @@ watch(
 		> .block-section {
 			&::after {
 				opacity: 1;
-				border: 2px solid #0871c2;
+				border: 2px solid #4434d4;
 			}
 
 			.drag-handle {
@@ -241,7 +241,7 @@ watch(
 		}
 
 		&:hover {
-			color: #1890ff;
+			color: #533afd;
 		}
 
 		.drag-icon {

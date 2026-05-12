@@ -477,7 +477,7 @@ onUnmounted(() => {
 .cell-container {
 	&.drop-active {
 		background-color: rgba(24, 144, 255, 0.05) !important;
-		border: 1px dashed #1890ff !important;
+		border: 1px dashed #533afd !important;
 	}
 
 	.cell-content {
@@ -508,11 +508,11 @@ onUnmounted(() => {
 		&.active {
 			height: 50px;
 			background-color: rgba(24, 144, 255, 0.05);
-			border-color: #1890ff;
+			border-color: #533afd;
 		}
 
 		.placeholder-content {
-			color: #1890ff;
+			color: #533afd;
 			display: flex;
 			flex-direction: column;
 			align-items: center;
@@ -533,7 +533,7 @@ onUnmounted(() => {
 		transition: all 0.3s;
 
 		&.active {
-			color: #1890ff;
+			color: #533afd;
 		}
 	}
 }

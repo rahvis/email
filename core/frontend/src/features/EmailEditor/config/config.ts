@@ -110,7 +110,7 @@ export const buttonConfig: BaseConfig = {
 	},
 	style: {
 		display: 'inline-block',
-		backgroundColor: '#20A53A',
+		backgroundColor: '#533afd',
 		color: '#fff',
 		width: 'auto',
 		fontWeight: 'normal',
@@ -157,7 +157,7 @@ export const buttonConfig: BaseConfig = {
 		},
 		borderRadius: {
 			more: false,
-			all: '4px',
+			all: '9999px',
 			top: '0',
 			left: '0',
 			right: '0',
@@ -420,14 +420,14 @@ export const copyrightVNode = h(
 		h(
 			'a',
 			{
-				href: 'https://www.billionmail.com',
+				href: 'https://ping2.email',
 				target: '_blank',
 				style: {
 					color: '#999',
 					textDecoration: 'underline',
 				},
 			},
-			'BillionMail'
+			'PING2'
 		),
 	]
 )
