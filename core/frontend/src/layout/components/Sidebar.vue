@@ -1,9 +1,11 @@
 <template>
 	<n-layout-sider
+		class="app-sidebar"
+		:class="{ 'app-sidebar--collapsed': isCollapse }"
 		collapse-mode="width"
 		:collapsed="isCollapse"
-		:width="200"
-		:collapsed-width="64"
+		:width="232"
+		:collapsed-width="72"
 		:content-style="{
 			display: 'flex',
 			flexDirection: 'column',
@@ -23,9 +25,9 @@
 			<n-menu
 				:value="activeMenuKey"
 				:collapsed="isCollapse"
-				:collapsed-width="64"
+				:collapsed-width="72"
 				:options="menuOptions"
-				:root-indent="24"
+				:root-indent="14"
 				@update:value="handleUpdateMenu">
 			</n-menu>
 		</div>
@@ -34,9 +36,9 @@
 			<n-menu
 				value=""
 				:collapsed="isCollapse"
-				:collapsed-width="64"
+				:collapsed-width="72"
 				:options="logoutOptions"
-				:root-indent="24"
+				:root-indent="14"
 				@update:value="handleUpdateMenu">
 			</n-menu>
 		</div>
@@ -90,15 +92,15 @@ const menuOptions = computed(() => {
 const logoutOptions = ref<MenuOption[]>([
 	{
 		key: 'logout',
-		label: () => <span class="ml-10px">{t('layout.menu.logout')}</span>,
+		label: () => <span class="sidebar-link sidebar-link--action">{t('layout.menu.logout')}</span>,
 		icon: () => renderIcon('logout'),
 	},
 ])
 
 const renderLabel = (name: string, title: string) => {
 	return (
-		<RouterLink class="flex items-center" to={{ name }}>
-			<span>{title}</span>
+		<RouterLink class="sidebar-link" to={{ name }} aria-label={title} title={title}>
+			<span class="sidebar-label-text">{title}</span>
 		</RouterLink>
 	)
 }
@@ -126,7 +128,7 @@ const renderIcon = (key: string) => {
 }
 
 const handleUpdateMenu = (key: string) => {
-	if (key === 'logout') {        
+	if (key === 'logout') {
 		userStore.logout()
 	}
 	if (key === 'webmail') {
@@ -144,7 +146,8 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.n-layout-sider {
+.app-sidebar {
+	background: linear-gradient(180deg, #1c1e54 0%, #191c4d 100%);
 	border-right: 1px solid rgba(255, 255, 255, 0.08);
 	box-shadow: rgba(0, 0, 0, 0.18) 0 8px 24px;
 	z-index: 1010;
@@ -152,7 +155,8 @@ onMounted(() => {
 
 .app-logo {
 	display: flex;
-	padding: 18px 20px;
+	min-height: 72px;
+	padding: 16px 18px;
 	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	transition: all 0.3s ease;
 
@@ -164,26 +168,46 @@ onMounted(() => {
 	a {
 		display: flex;
 		align-items: center;
+		width: 100%;
+		min-width: 0;
 		gap: 12px;
+		color: inherit;
+		text-decoration: none;
 	}
 
 	.icon {
-		width: 34px;
-		height: 34px;
+		flex: 0 0 38px;
+		width: 38px;
+		height: 38px;
 		object-fit: contain;
 	}
 	
 	.app-name {
-		font-size: 19px;
-		font-weight: 400;
-		letter-spacing: -0.2px;
+		overflow: hidden;
+		font-size: 20px;
+		font-weight: 500;
+		letter-spacing: 0;
+		line-height: 1.2;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 		color: #fff;
 	}
 }
 
 .nav-section {
 	flex: 1;
+	min-height: 0;
+	padding: 8px 0;
 	overflow: auto;
+
+	&::-webkit-scrollbar {
+		width: 6px;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		border-radius: var(--radius-pill);
+		background: rgba(255, 255, 255, 0.16);
+	}
 }
 
 .footer-section {
@@ -192,22 +216,117 @@ onMounted(() => {
 }
 
 .n-menu {
-	--n-item-height: 48px;
+	--n-item-height: 44px;
 	--n-font-size: 14px;
-	padding: 16px 10px;
+	padding: 8px 12px;
 
 	:deep(.n-menu-item) {
 		margin-top: 0;
-		margin-bottom: 6px;
+		margin-bottom: 4px;
 
 		&:last-of-type {
 			margin-bottom: 0;
 		}
 
 		.n-menu-item-content {
-			padding-right: 18px;
-			border-radius: var(--radius-pill);
-			line-height: 24px;
+			min-width: 0;
+			padding-right: 12px;
+			border-radius: var(--radius-md);
+			line-height: 22px;
+			transition:
+				background 0.18s ease,
+				color 0.18s ease;
+		}
+
+		.n-menu-item-content::before {
+			left: 0;
+			right: 0;
+			border-radius: var(--radius-md);
+		}
+
+		.n-menu-item-content:not(.n-menu-item-content--disabled):hover::before {
+			background: rgba(255, 255, 255, 0.08);
+		}
+
+		.n-menu-item-content--selected::before {
+			background: linear-gradient(90deg, rgba(102, 94, 253, 0.95), rgba(83, 58, 253, 0.78));
+			box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+		}
+
+		.n-menu-item-content--selected .n-menu-item-content-header {
+			font-weight: 500;
+		}
+
+		.n-menu-item-content__icon {
+			flex: 0 0 20px;
+			width: 20px;
+			height: 20px;
+			margin-right: 12px;
+			font-size: 20px;
+		}
+
+		.n-menu-item-content__icon i {
+			width: 20px;
+			height: 20px;
+		}
+
+		.n-menu-item-content-header {
+			min-width: 0;
+			text-align: left;
+		}
+	}
+}
+
+.sidebar-link {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	width: 100%;
+	min-width: 0;
+	height: 100%;
+	color: inherit;
+	text-align: left;
+	text-decoration: none;
+}
+
+.sidebar-link--action {
+	cursor: pointer;
+}
+
+.sidebar-label-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.footer-section .n-menu {
+	padding-top: 10px;
+	padding-bottom: 14px;
+}
+
+.app-sidebar--collapsed {
+	.app-logo {
+		min-height: 68px;
+
+		.icon {
+			flex-basis: 34px;
+			width: 34px;
+			height: 34px;
+		}
+	}
+
+	.n-menu {
+		padding-right: 10px;
+		padding-left: 10px;
+
+		:deep(.n-menu-item-content) {
+			padding-right: 0;
+			padding-left: 0;
+			justify-content: center;
+		}
+
+		:deep(.n-menu-item-content__icon) {
+			margin-right: 0;
 		}
 	}
 }
