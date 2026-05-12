@@ -131,6 +131,36 @@ var (
 
 			// Create a new server instance
 			s := g.Server(consts.DEFAULT_SERVER_NAME)
+			for _, path := range []string{
+				"/",
+				"/login",
+				"/overview",
+				"/send",
+				"/mailbox",
+				"/domain",
+				"/smtp",
+				"/contacts/group",
+				"/contacts/subscribers",
+				"/contacts/suspend",
+				"/contacts/tags",
+				"/market/task",
+				"/market/task/edit",
+				"/market/template",
+				"/template",
+				"/settings/common",
+				"/settings/service",
+				"/settings/bcc",
+				"/settings/forward",
+				"/settings/ai-model",
+				"/settings/send-queue",
+				"/settings/rspamd",
+				"/logs/operation",
+				"/logs/error",
+				"/video-outreach",
+				"/automation",
+			} {
+				s.SetRewrite(path, "/index.html")
+			}
 			isFrontendHistoryRequest := func(r *ghttp.Request) bool {
 				if r.Method != http.MethodGet && r.Method != http.MethodHead {
 					return false
