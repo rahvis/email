@@ -23,3 +23,16 @@ docker image prune -f
 echo ">>> Status"
 sleep 8
 docker compose ps
+
+echo ">>> Health checks"
+for path in / /login /overview; do
+	body=$(curl -fsSL --max-time 20 "http://127.0.0.1${path}")
+	if ! grep -q "PING2" <<<"$body"; then
+		echo "Health check failed: ${path} did not include PING2"
+		exit 1
+	fi
+	echo "OK http://127.0.0.1${path}"
+done
+
+curl -fsS --max-time 20 http://127.0.0.1/api/languages/get >/tmp/billionmail-languages-health.json
+echo "OK http://127.0.0.1/api/languages/get"
