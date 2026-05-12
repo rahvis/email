@@ -25,6 +25,12 @@ type JWTCustomClaims struct {
 	jwt.RegisteredClaims
 }
 
+const (
+	tokenSubjectAccess  = "access_token"
+	tokenSubjectRefresh = "refresh_token"
+	tokenSubjectAPI     = "api_token"
+)
+
 // JWTService provides methods for JWT operations
 type JWTService struct {
 	Secret        string        // Secret key for signing JWT
@@ -67,7 +73,7 @@ func (s *JWTService) GenerateToken(accountId int64, username string, roles []str
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    consts.DEFAULT_SERVER_NAME,
-			Subject:   "access_token",
+			Subject:   tokenSubjectAccess,
 			ID:        guid.S() + guid.S(),
 		},
 	}
@@ -92,7 +98,7 @@ func (s *JWTService) GenerateRefreshToken(accountId int64, username string) (str
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    consts.DEFAULT_SERVER_NAME,
-			Subject:   "refresh_token",
+			Subject:   tokenSubjectRefresh,
 			ID:        guid.S() + guid.S(),
 		},
 	}
@@ -118,7 +124,7 @@ func (s *JWTService) GenerateApiToken(accountId int64, username string, roles []
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    consts.DEFAULT_SERVER_NAME,
-			Subject:   "api_token",
+			Subject:   tokenSubjectAPI,
 			ID:        guid.S() + guid.S(),
 		},
 	}
@@ -161,6 +167,41 @@ func (s *JWTService) ParseTokenByRequest(r *ghttp.Request) (*JWTCustomClaims, er
 	return s.ParseToken(strings.TrimPrefix(authHeader, "Bearer "))
 }
 
+// ParseProtectedAPIToken parses and verifies a token for protected API access.
+func (s *JWTService) ParseProtectedAPIToken(tokenString string) (*JWTCustomClaims, error) {
+	if strings.TrimSpace(tokenString) == "" {
+		return nil, gerror.New("no authorization token found")
+	}
+	claims, err := s.ParseToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	if !s.IsProtectedAPITokenAllowed(claims) {
+		return nil, gerror.New("invalid token type")
+	}
+	return claims, nil
+}
+
+// IsProtectedAPITokenAllowed checks whether parsed claims may reach protected API handlers.
+func (s *JWTService) IsProtectedAPITokenAllowed(claims *JWTCustomClaims) bool {
+	if claims == nil {
+		return false
+	}
+	if claims.ApiToken {
+		return claims.Subject == tokenSubjectAPI
+	}
+	return claims.Subject == tokenSubjectAccess
+}
+
+// ParseProtectedAPITokenByRequest parses and verifies tokens for protected API access.
+func (s *JWTService) ParseProtectedAPITokenByRequest(r *ghttp.Request) (*JWTCustomClaims, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil, gerror.New("no authorization header found")
+	}
+	return s.ParseProtectedAPIToken(strings.TrimPrefix(authHeader, "Bearer "))
+}
+
 // InvalidateToken invalidates a JWT token
 func (s *JWTService) InvalidateToken(token *JWTCustomClaims) error {
 	// Using redis to invalidate the token
@@ -177,6 +218,9 @@ func (s *JWTService) IsTokenBlacklisted(token *JWTCustomClaims) bool {
 	if token.RegisteredClaims.ExpiresAt == nil {
 		return false
 	}
+	defer func() {
+		_ = recover()
+	}()
 
 	exists, err := g.Redis().Exists(context.Background(), consts.JWT_BLACK_LIST_KEY_PREFIX+token.RegisteredClaims.ID)
 	if err != nil {
@@ -221,7 +265,7 @@ func (s *JWTService) JWTAuthMiddleware(r *ghttp.Request) {
 
 	// Parse token
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	claims, err := s.ParseToken(tokenString)
+	claims, err := s.ParseProtectedAPIToken(tokenString)
 	if err != nil {
 		//resp.Msg = fmt.Sprintf("invalid token: %s", err.Error())
 		r.Response.WriteJson(resp)

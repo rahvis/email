@@ -21,6 +21,12 @@ import (
 
 var signupUsernameRegexp = regexp.MustCompile(`^[A-Za-z0-9_]{4,32}$`)
 
+func grantSafePathPass(ctx context.Context) {
+	if request := g.RequestFromCtx(ctx); request != nil {
+		_ = request.Session.Set("safe_path_pass", true)
+	}
+}
+
 func normalizeSignupReq(req *v1.SignupReq) {
 	req.Username = strings.TrimSpace(req.Username)
 	req.Email = strings.TrimSpace(req.Email)
@@ -162,6 +168,7 @@ func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.Log
 	res.Data.AccountInfo.Lang = account.Language
 
 	loginSuccessFlag = true
+	grantSafePathPass(ctx)
 
 	_ = public.WriteLog(ctx, public.LogParams{
 		Type: consts.LOGTYPE.Login,
@@ -290,6 +297,7 @@ func (c *ControllerV1) Signup(ctx context.Context, req *v1.SignupReq) (res *v1.S
 	res.Data.AccountInfo.Email = req.Email
 	res.Data.AccountInfo.Status = status
 	res.Data.AccountInfo.Lang = language
+	grantSafePathPass(ctx)
 
 	_ = public.WriteLog(ctx, public.LogParams{
 		Type: consts.LOGTYPE.Login,
@@ -380,6 +388,7 @@ func (c *ControllerV1) RefreshToken(ctx context.Context, req *v1.RefreshTokenReq
 	res.Data.Token = token
 	res.Data.RefreshToken = refreshToken
 	res.Data.TTL = gconv.Int64(service.JWT().AccessExpiry.Seconds())
+	grantSafePathPass(ctx)
 
 	return
 }

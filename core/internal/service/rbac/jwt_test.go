@@ -181,6 +181,92 @@ func TestJWTService_ParseToken_StripsBearerPrefix(t *testing.T) {
 	assert.Equal(t, tokenStr, stripped2)
 }
 
+func TestJWTService_IsProtectedAPITokenAllowed(t *testing.T) {
+	svc := newTestJWTService("protected-claims-secret")
+
+	tests := []struct {
+		name   string
+		claims *JWTCustomClaims
+		want   bool
+	}{
+		{name: "nil claims", claims: nil, want: false},
+		{
+			name: "access token",
+			claims: &JWTCustomClaims{
+				RegisteredClaims: jwt.RegisteredClaims{Subject: tokenSubjectAccess},
+			},
+			want: true,
+		},
+		{
+			name: "api token",
+			claims: &JWTCustomClaims{
+				ApiToken:         true,
+				RegisteredClaims: jwt.RegisteredClaims{Subject: tokenSubjectAPI},
+			},
+			want: true,
+		},
+		{
+			name: "refresh token",
+			claims: &JWTCustomClaims{
+				RegisteredClaims: jwt.RegisteredClaims{Subject: tokenSubjectRefresh},
+			},
+			want: false,
+		},
+		{
+			name: "api flag with refresh subject",
+			claims: &JWTCustomClaims{
+				ApiToken:         true,
+				RegisteredClaims: jwt.RegisteredClaims{Subject: tokenSubjectRefresh},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, svc.IsProtectedAPITokenAllowed(tt.claims))
+		})
+	}
+}
+
+func TestJWTService_ParseProtectedAPIToken(t *testing.T) {
+	svc := newTestJWTService("protected-token-secret")
+
+	accessToken, _, err := svc.GenerateToken(1, "admin", []string{"admin"})
+	require.NoError(t, err)
+	apiToken, _, err := svc.GenerateApiToken(1, "admin", []string{"admin"})
+	require.NoError(t, err)
+	refreshToken, err := svc.GenerateRefreshToken(1, "admin")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		token   string
+		wantErr bool
+	}{
+		{name: "empty token", token: "", wantErr: true},
+		{name: "invalid token", token: "not-a-token", wantErr: true},
+		{name: "access token", token: accessToken},
+		{name: "access token with bearer prefix", token: "Bearer " + accessToken},
+		{name: "api token", token: apiToken},
+		{name: "refresh token", token: refreshToken, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claims, err := svc.ParseProtectedAPIToken(tt.token)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, claims)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, claims)
+			assert.True(t, svc.IsProtectedAPITokenAllowed(claims))
+		})
+	}
+}
+
 func TestJWTService_TokenClaims_IDs(t *testing.T) {
 	svc := newTestJWTService("unique-id-secret")
 

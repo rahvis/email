@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"context"
 	"testing"
 
 	"billionmail-core/api/rbac/v1"
@@ -97,4 +98,8 @@ func TestNormalizeSignupReq(t *testing.T) {
 	if req.Email != "admin@example.com" {
 		t.Fatalf("email = %q", req.Email)
 	}
+}
+
+func TestGrantSafePathPassWithoutRequestDoesNotPanic(t *testing.T) {
+	grantSafePathPass(context.Background())
 }
