@@ -170,15 +170,25 @@ jobs:
           set -euo pipefail
           echo "::add-mask::${NEW_PASSWORD}"
 
-          curl -k -fsSL --max-time 20 https://159.89.33.85/login | grep -q PING2
-          echo "OK https://159.89.33.85/login"
-
           admin_username="$(ssh -p "${{ secrets.DROPLET_PORT || '22' }}" -i ~/.ssh/id_ed25519 \
             "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
             "sed -n 's/^ADMIN_USERNAME=//p' /opt/billionmail/.env | tail -1")"
+          safe_path="$(ssh -p "${{ secrets.DROPLET_PORT || '22' }}" -i ~/.ssh/id_ed25519 \
+            "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "sed -n 's/^SafePath=//p' /opt/billionmail/.env | tail -1")"
+
+          cookie_jar="$(mktemp)"
+          if [[ -n "${safe_path}" ]]; then
+            curl -k -fsSL --max-time 20 -c "${cookie_jar}" "https://159.89.33.85/${safe_path}" >/dev/null
+          fi
+
+          curl -k -fsSL --max-time 20 -b "${cookie_jar}" -c "${cookie_jar}" https://159.89.33.85/login | grep -q PING2
+          echo "OK https://159.89.33.85/login"
 
           login_payload="$(printf '{"username":"%s","password":"%s"}' "${admin_username}" "${NEW_PASSWORD}")"
           login_response="$(curl -k -fsS --max-time 20 \
+            -b "${cookie_jar}" \
+            -c "${cookie_jar}" \
             -H 'Content-Type: application/json' \
             -d "${login_payload}" \
             https://159.89.33.85/api/login)"
@@ -190,3 +200,4 @@ jobs:
           fi
 
           echo "External login verified for admin username: ${admin_username}"
+          echo "Safe entrance path: /${safe_path}"
