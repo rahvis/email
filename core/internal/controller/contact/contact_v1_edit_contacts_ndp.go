@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -75,7 +76,7 @@ func (c *ControllerV1) EditContactsNDP(ctx context.Context, req *v1.EditContacts
 		if len(updateData) == 0 {
 			return gerror.New(public.LangCtx(ctx, "No valid fields to update"))
 		}
-		_, err = g.DB().Model("bm_contacts").Where("id", req.Id).Data(updateData).Update()
+		_, err = tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").Where("id", req.Id).Data(updateData).Update()
 		if err != nil {
 			return gerror.New(public.LangCtx(ctx, "Failed to update contact: {}", err.Error()))
 		}
@@ -88,7 +89,7 @@ func (c *ControllerV1) EditContactsNDP(ctx context.Context, req *v1.EditContacts
 	}
 
 	var contact entity.Contact
-	err = g.DB().Model("bm_contacts").Where("id", req.Id).Scan(&contact)
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Where("id", req.Id).Scan(&contact)
 	_ = public.WriteLog(ctx, public.LogParams{
 		Type: consts.LOGTYPE.Contacts,
 		Log:  fmt.Sprintf("Edit contact: %s successfully", contact.Email),

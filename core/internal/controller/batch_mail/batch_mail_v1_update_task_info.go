@@ -4,6 +4,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -22,7 +23,7 @@ func (c *ControllerV1) UpdateTaskInfo(ctx context.Context, req *v1.UpdateTaskInf
 		Pause       int `json:"pause"`
 	}
 
-	err = g.DB().Model("email_tasks").
+	err = tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").
 		Fields("id, task_process, pause").
 		Where("id", req.TaskId).
 		Scan(&task)
@@ -73,6 +74,12 @@ func (c *ControllerV1) UpdateTaskInfo(ctx context.Context, req *v1.UpdateTaskInf
 	if req.StartTime > 0 {
 		updateData["start_time"] = req.StartTime
 	}
+	if req.DeliveryEngine != "" {
+		updateData["delivery_engine"] = batch_mail.NormalizeCampaignDeliveryEngineForAPI(req.DeliveryEngine)
+	}
+	if req.SendingProfileId > 0 {
+		updateData["sending_profile_id"] = req.SendingProfileId
+	}
 
 	if len(req.TagIds) > 0 {
 		updateData["tag_ids"] = req.TagIds
@@ -85,7 +92,7 @@ func (c *ControllerV1) UpdateTaskInfo(ctx context.Context, req *v1.UpdateTaskInf
 		return
 	}
 
-	_, err = g.DB().Model("email_tasks").
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").
 		Where("id", req.TaskId).
 		Data(updateData).
 		Update()
@@ -98,7 +105,7 @@ func (c *ControllerV1) UpdateTaskInfo(ctx context.Context, req *v1.UpdateTaskInf
 
 	_ = public.WriteLog(ctx, public.LogParams{
 		Type: consts.LOGTYPE.Task,
-		Log:  "Update Task Info :" + updateData["subject"].(string) + " successfully",
+		Log:  "Update Task Info successfully",
 		Data: updateData,
 	})
 

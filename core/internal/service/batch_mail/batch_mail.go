@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/maillog_stat"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"billionmail-core/internal/service/warmup"
 	"context"
 	"fmt"
@@ -35,13 +36,15 @@ type CreateTaskArgs struct {
 	TrackOpen   int    `json:"track_open"`  // Track email opens
 	TrackClick  int    `json:"track_click"` // Track email clicks
 	//Etypes      string `json:"etypes"`      // Email types (e.g., group IDs)
-	Remark    string `json:"remark"`     // Task remark
-	StartTime int    `json:"start_time"` // Scheduled start time
-	Warmup    int    `json:"warmup"`     // Warmup campaign association
-	AddType   int    `json:"add_type"`   // Add type (0: normal)
-	GroupId   int    `json:"group_id"`   // Groups to unsubscribe from
-	TagIds    []int  `json:"tag_ids"`    // Tag IDs for filtering contacts
-	TagLogic  string `json:"tag_logic"`  // Tag logic (AND/OR)
+	Remark           string `json:"remark"`             // Task remark
+	StartTime        int    `json:"start_time"`         // Scheduled start time
+	Warmup           int    `json:"warmup"`             // Warmup campaign association
+	AddType          int    `json:"add_type"`           // Add type (0: normal)
+	GroupId          int    `json:"group_id"`           // Groups to unsubscribe from
+	DeliveryEngine   string `json:"delivery_engine"`    // Delivery engine: postfix, kumomta, tenant_default
+	SendingProfileId int    `json:"sending_profile_id"` // Future tenant sending profile
+	TagIds           []int  `json:"tag_ids"`            // Tag IDs for filtering contacts
+	TagLogic         string `json:"tag_logic"`          // Tag logic (AND/OR)
 }
 
 // ============= task related operations =============
@@ -56,12 +59,12 @@ func GetTasksWithPage(ctx context.Context, page, pageSize int, keyword string, s
 		pageSize = 10
 	}
 
-	model := g.DB().Model("email_tasks").Safe()
+	model := tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").Safe()
 
 	// add query conditions
 	if keyword != "" {
-		model = model.WhereLike("task_name", "%"+keyword+"%").
-			WhereOrLike("subject", "%"+keyword+"%")
+		pattern := "%" + keyword + "%"
+		model = model.Where("(task_name LIKE ? OR subject LIKE ?)", pattern, pattern)
 	}
 	if status != -1 {
 		model = model.Where("task_process", status)
@@ -95,7 +98,7 @@ func GetTasksWithPage(ctx context.Context, page, pageSize int, keyword string, s
 			}
 
 			var vals []gdb.Value
-			vals, _ = g.DB().Ctx(ctx).Model("bm_campaign_warmup").WhereIn("task_id", ids).Array("task_id")
+			vals, _ = tenants.ScopeModel(ctx, g.DB().Ctx(ctx).Model("bm_campaign_warmup"), "tenant_id").WhereIn("task_id", ids).Array("task_id")
 
 			for _, val := range vals {
 				m[val.Int()].EstimatedTimeWithWarmup, _ = warmup.WarmupCampaign().CalculateEstimatedTime(ctx, val.Int64(), serverIP)
@@ -111,7 +114,7 @@ func DeleteTask(ctx context.Context, id int) error {
 	// delete task before removing task executor
 	RemoveTaskExecutor(id)
 
-	_, err := g.DB().Model("email_tasks").
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").
 		Where("id", id).
 		Delete()
 	return err
@@ -131,6 +134,7 @@ func CreateTask(ctx context.Context, args CreateTaskArgs) (int, error) {
 	}
 
 	result, err := g.DB().Model("email_tasks").Insert(g.Map{
+		"tenant_id":       tenants.CurrentTenantID(ctx),
 		"task_name":       taskName,
 		"addresser":       args.Addresser,
 		"subject":         args.Subject,
@@ -143,17 +147,19 @@ func CreateTask(ctx context.Context, args CreateTaskArgs) (int, error) {
 		"unsubscribe":     args.Unsubscribe,
 		"threads":         args.Threads,
 		//"etypes":          args.Etypes,
-		"track_open":  args.TrackOpen,
-		"track_click": args.TrackClick,
-		"start_time":  args.StartTime,
-		"create_time": now,
-		"update_time": now,
-		"active":      1,
-		"remark":      args.Remark,
-		"add_type":    args.AddType,
-		"group_id":    args.GroupId,
-		"tag_ids":     tagIdsJson,
-		"tag_logic":   args.TagLogic,
+		"track_open":         args.TrackOpen,
+		"track_click":        args.TrackClick,
+		"start_time":         args.StartTime,
+		"create_time":        now,
+		"update_time":        now,
+		"active":             1,
+		"remark":             args.Remark,
+		"add_type":           args.AddType,
+		"group_id":           args.GroupId,
+		"delivery_engine":    normalizeCampaignDeliveryEngine(args.DeliveryEngine),
+		"sending_profile_id": args.SendingProfileId,
+		"tag_ids":            tagIdsJson,
+		"tag_logic":          args.TagLogic,
 	})
 	if err != nil {
 		g.Log().Debug(ctx, "Failed to create campaign:", err.Error())
@@ -183,7 +189,7 @@ func CreateTask(ctx context.Context, args CreateTaskArgs) (int, error) {
 
 // UpdateRecipientCount update recipient count
 func UpdateRecipientCount(ctx context.Context, taskId, count int) error {
-	_, err := g.DB().Model("email_tasks").
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").
 		Where("id", taskId).
 		Data(g.Map{"recipient_count": count}).
 		Update()
@@ -194,7 +200,7 @@ func UpdateRecipientCount(ctx context.Context, taskId, count int) error {
 
 // GetSentCount get sent count
 func GetSentCount(ctx context.Context, taskId int) (int, error) {
-	return g.DB().Model("recipient_info").
+	return tenants.ScopeModel(ctx, g.DB().Model("recipient_info"), "tenant_id").
 		Where("task_id", taskId).
 		Where("is_sent", 1).
 		Count()
@@ -213,6 +219,7 @@ func ImportRecipients(ctx context.Context, taskId int, contacts []*entity.Contac
 
 	totalImported := 0
 	now := time.Now().Unix()
+	tenantID := tenants.CurrentTenantID(ctx)
 
 	for i := 0; i < totalBatches; i++ {
 		// Calculate start and end indices for current batch
@@ -229,6 +236,7 @@ func ImportRecipients(ctx context.Context, taskId int, contacts []*entity.Contac
 		values := make([]g.Map, len(currentBatch))
 		for j, contact := range currentBatch {
 			values[j] = g.Map{
+				"tenant_id":   tenantID,
 				"task_id":     taskId,
 				"recipient":   contact.Email,
 				"is_sent":     0,
@@ -267,6 +275,7 @@ func ImportRecipientsTx(ctx context.Context, tx gdb.TX, taskId int, contacts []*
 	const batchSize = 1000
 	totalBatches := (len(contacts) + batchSize - 1) / batchSize
 	now := time.Now().Unix()
+	tenantID := tenants.CurrentTenantID(ctx)
 	for i := 0; i < totalBatches; i++ {
 		startIdx := i * batchSize
 		endIdx := (i + 1) * batchSize
@@ -277,6 +286,7 @@ func ImportRecipientsTx(ctx context.Context, tx gdb.TX, taskId int, contacts []*
 		values := make([]g.Map, len(currentBatch))
 		for j, contact := range currentBatch {
 			values[j] = g.Map{
+				"tenant_id":   tenantID,
 				"task_id":     taskId,
 				"recipient":   contact.Email,
 				"is_sent":     0,
@@ -307,7 +317,7 @@ func GetGroupInfo(ctx context.Context, groupId int) (*v1.GroupInfo, error) {
 		Count int    `json:"count"`
 	}
 
-	err := g.DB().Model("bm_contact_groups cg").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups cg"), "cg.tenant_id").
 		LeftJoin("bm_contacts c", "cg.id = c.group_id").
 		Fields("cg.id, cg.name, COUNT(CASE WHEN c.active = 1 THEN 1 END) as count").
 		Where("cg.id", groupId).
@@ -328,7 +338,7 @@ func GetGroupInfo(ctx context.Context, groupId int) (*v1.GroupInfo, error) {
 // GetActiveContacts get active contacts in group
 func GetActiveContacts(ctx context.Context, groupId int) ([]*entity.Contact, error) {
 	var contacts []*entity.Contact
-	err := g.DB().Model("bm_contacts").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").
 		Where("group_id", groupId).
 		Where("active", 1).
 		Where("status", 1). // Confirmed email address
@@ -345,7 +355,7 @@ type ContactFilter struct {
 func GetFilteredContacts(ctx context.Context, filter ContactFilter) ([]*entity.Contact, error) {
 	var contacts []*entity.Contact
 
-	model := g.DB().Model("bm_contacts c").
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts c"), "c.tenant_id").
 		Where("c.active", 1).
 		Where("c.status", 1). // Confirmed email address
 		Fields("c.*")
@@ -361,7 +371,7 @@ func GetFilteredContacts(ctx context.Context, filter ContactFilter) ([]*entity.C
 				alias := g.NewVar("ct" + g.NewVar(i).String()).String()
 				model = model.InnerJoin(
 					"bm_contact_tags "+alias,
-					"c.id = "+alias+".contact_id AND "+alias+".tag_id = "+g.NewVar(tagId).String(),
+					"c.id = "+alias+".contact_id AND "+alias+".tenant_id = c.tenant_id AND "+alias+".tag_id = "+g.NewVar(tagId).String(),
 				)
 			}
 		} else if filter.TagLogic == "OR" {
@@ -372,9 +382,13 @@ func GetFilteredContacts(ctx context.Context, filter ContactFilter) ([]*entity.C
 				inValues = append(inValues, strconv.Itoa(tagId))
 			}
 
+			tenantFilter := ""
+			if tenantID := tenants.CurrentTenantID(ctx); tenantID > 0 {
+				tenantFilter = fmt.Sprintf(" AND tenant_id = %d", tenantID)
+			}
 			subQuery := fmt.Sprintf(
-				"(SELECT DISTINCT contact_id FROM bm_contact_tags WHERE tag_id IN (%s)) ct",
-				strings.Join(inValues, ","),
+				"(SELECT DISTINCT contact_id FROM bm_contact_tags WHERE tag_id IN (%s)%s) ct",
+				strings.Join(inValues, ","), tenantFilter,
 			)
 
 			model = model.InnerJoin(
@@ -386,6 +400,9 @@ func GetFilteredContacts(ctx context.Context, filter ContactFilter) ([]*entity.C
 			subQuery := g.DB().Model("bm_contact_tags").
 				Fields("DISTINCT contact_id").
 				WhereIn("tag_id", filter.TagIds)
+			if tenantID := tenants.CurrentTenantID(ctx); tenantID > 0 {
+				subQuery = subQuery.Where("tenant_id", tenantID)
+			}
 			model = model.WhereNotIn("c.id", subQuery)
 		}
 	}
@@ -404,6 +421,7 @@ func GetFilteredContacts(ctx context.Context, filter ContactFilter) ([]*entity.C
 func CreateTaskWithRecipients(ctx context.Context, req *v1.CreateTaskReq, addType int) (int, error) {
 	var taskId int
 	var err error
+	tenantID := tenants.CurrentTenantID(ctx)
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 
 		now := time.Now().Unix()
@@ -414,28 +432,31 @@ func CreateTaskWithRecipients(ctx context.Context, req *v1.CreateTaskReq, addTyp
 		}
 
 		res, e := tx.Ctx(ctx).Model("email_tasks").Insert(g.Map{
-			"task_name":       taskName,
-			"addresser":       req.Addresser,
-			"subject":         req.Subject,
-			"full_name":       req.FullName,
-			"recipient_count": 0,
-			"task_process":    0,
-			"pause":           0,
-			"template_id":     req.TemplateId,
-			"is_record":       req.IsRecord,
-			"unsubscribe":     req.Unsubscribe,
-			"threads":         req.Threads,
-			"track_open":      req.TrackOpen,
-			"track_click":     req.TrackClick,
-			"start_time":      req.StartTime,
-			"create_time":     now,
-			"update_time":     now,
-			"active":          1,
-			"remark":          req.Remark,
-			"add_type":        addType,
-			"group_id":        req.GroupId,
-			"tag_ids":         tagIdsJson,
-			"tag_logic":       req.TagLogic,
+			"tenant_id":          tenantID,
+			"task_name":          taskName,
+			"addresser":          req.Addresser,
+			"subject":            req.Subject,
+			"full_name":          req.FullName,
+			"recipient_count":    0,
+			"task_process":       0,
+			"pause":              0,
+			"template_id":        req.TemplateId,
+			"is_record":          req.IsRecord,
+			"unsubscribe":        req.Unsubscribe,
+			"threads":            req.Threads,
+			"track_open":         req.TrackOpen,
+			"track_click":        req.TrackClick,
+			"start_time":         req.StartTime,
+			"create_time":        now,
+			"update_time":        now,
+			"active":             1,
+			"remark":             req.Remark,
+			"add_type":           addType,
+			"group_id":           req.GroupId,
+			"delivery_engine":    normalizeCampaignDeliveryEngine(req.DeliveryEngine),
+			"sending_profile_id": req.SendingProfileId,
+			"tag_ids":            tagIdsJson,
+			"tag_logic":          req.TagLogic,
 		})
 		if e != nil {
 			return gerror.New(public.LangCtx(ctx, "Failed to create task {}", e.Error()))
@@ -447,7 +468,7 @@ func CreateTaskWithRecipients(ctx context.Context, req *v1.CreateTaskReq, addTyp
 			Recipient string `json:"recipient"`
 			Count     int    `json:"count"`
 		}
-		if e = tx.Model("abnormal_recipient").Where("count >= ?", 3).Fields("recipient, count").Scan(&abnormalRecipients); e != nil {
+		if e = tenants.ScopeModel(ctx, tx.Model("abnormal_recipient"), "tenant_id").Where("count >= ?", 3).Fields("recipient, count").Scan(&abnormalRecipients); e != nil {
 			g.Log().Debugf(ctx, "Failed to get the exception recipient list: %v", e)
 		}
 		abnormalMap := make(map[string]int, len(abnormalRecipients))
@@ -498,7 +519,7 @@ func CreateTaskWithRecipients(ctx context.Context, req *v1.CreateTaskReq, addTyp
 		}
 
 		if actualCount, e2 := GetActualRecipientCount(ctx, taskId); e2 == nil && actualCount > 0 {
-			if _, e2 = tx.Ctx(ctx).Model("email_tasks").Where("id", taskId).Data(g.Map{"recipient_count": actualCount}).Update(); e2 != nil {
+			if _, e2 = tenants.ScopeModel(ctx, tx.Ctx(ctx).Model("email_tasks"), "tenant_id").Where("id", taskId).Data(g.Map{"recipient_count": actualCount}).Update(); e2 != nil {
 				return gerror.New(public.LangCtx(ctx, "Failed to update recipient count for task {}: {}", taskId, e2.Error()))
 			}
 		}
@@ -522,7 +543,7 @@ func CreateTaskWithRecipients(ctx context.Context, req *v1.CreateTaskReq, addTyp
 // GetTaskInfo get task info
 func GetTaskInfo(ctx context.Context, taskId int) (*entity.EmailTask, error) {
 	var task entity.EmailTask
-	err := g.DB().Model("email_tasks").
+	err := tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").
 		Where("id", taskId).
 		Fields("*, tag_ids as TagIdsRaw").
 		Scan(&task)
@@ -544,7 +565,7 @@ func UpdateTaskPauseStatus(ctx context.Context, taskId int, isPaused bool) error
 		processValue = 3
 	}
 
-	_, err := g.DB().Model("email_tasks").
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").
 		Where("id", taskId).
 		Data(g.Map{
 			"pause":        pauseValue,
@@ -562,7 +583,7 @@ func UpdateTaskPauseStatus(ctx context.Context, taskId int, isPaused bool) error
 
 // UpdateTaskProcessStatus update task process status
 func UpdateTaskProcessStatus(ctx context.Context, taskId int, status int) error {
-	_, err := g.DB().Model("email_tasks").
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("email_tasks"), "tenant_id").
 		Where("id", taskId).
 		Data(g.Map{"task_process": status}).
 		Update()
@@ -585,6 +606,9 @@ func GetTaskSendingStats(ctx context.Context, taskID int) (int, int, error) {
 	successQuery = successQuery.LeftJoin("mailstat_message_ids mid", "sm.postfix_message_id=mid.postfix_message_id")
 	successQuery = successQuery.LeftJoin("recipient_info ri", "mid.message_id=ri.message_id")
 	successQuery = successQuery.Where("ri.task_id", taskID)
+	if tenantID := tenants.CurrentTenantID(ctx); tenantID > 0 {
+		successQuery = successQuery.Where("ri.tenant_id", tenantID)
+	}
 	successQuery = successQuery.Where("sm.status", "sent")
 	successQuery = successQuery.Where("sm.dsn LIKE '2.%'")
 	successCount, err := successQuery.Count()
@@ -598,6 +622,9 @@ func GetTaskSendingStats(ctx context.Context, taskID int) (int, int, error) {
 	failedQuery = failedQuery.LeftJoin("mailstat_message_ids mid", "sm.postfix_message_id=mid.postfix_message_id")
 	failedQuery = failedQuery.LeftJoin("recipient_info ri", "mid.message_id=ri.message_id")
 	failedQuery = failedQuery.Where("ri.task_id", taskID)
+	if tenantID := tenants.CurrentTenantID(ctx); tenantID > 0 {
+		failedQuery = failedQuery.Where("ri.tenant_id", tenantID)
+	}
 	failedQuery = failedQuery.Where("sm.status = 'bounced'")
 	//failedQuery = failedQuery.Where("sm.status = 'deferred'")
 	failedCount, err := failedQuery.Count()
@@ -611,7 +638,7 @@ func GetTaskSendingStats(ctx context.Context, taskID int) (int, int, error) {
 
 func GetActualRecipientCount(ctx context.Context, taskId int) (int, error) {
 
-	count, err := g.DB().Model("recipient_info").
+	count, err := tenants.ScopeModel(ctx, g.DB().Model("recipient_info"), "tenant_id").
 		Where("task_id", taskId).
 		Count()
 
@@ -668,9 +695,12 @@ func UpdateTaskJoinMailstat(ctx context.Context) {
 			Where("id", task.Id).
 			Data(g.Map{
 				"sends_count":       stats["sends"],
+				"queued_count":      stats["queued"],
 				"delivered_count":   stats["delivered"],
 				"bounced_count":     stats["bounced"],
 				"deferred_count":    stats["deferred"],
+				"expired_count":     stats["expired"],
+				"complained_count":  stats["complained"],
 				"stats_update_time": time.Now().Unix(),
 			}).
 			Update()
@@ -706,6 +736,53 @@ func getSingleTaskStats(ctx context.Context, taskId int64) map[string]interface{
 		}
 	}
 
+	kumoStats := GetTaskKumoLifecycleStats(ctx, taskId)
+	stats["queued"] = kumoStats["queued"]
+	stats["sends"] = gconv.Int(stats["sends"]) + kumoStats["queued"]
+	stats["delivered"] = gconv.Int(stats["delivered"]) + kumoStats["delivered"]
+	stats["bounced"] = gconv.Int(stats["bounced"]) + kumoStats["bounced"]
+	stats["deferred"] = gconv.Int(stats["deferred"]) + kumoStats["deferred"]
+	stats["expired"] = kumoStats["expired"]
+	stats["complained"] = kumoStats["complained"]
+
+	return stats
+}
+
+func GetTaskKumoLifecycleStats(ctx context.Context, taskId int64) map[string]int {
+	stats := map[string]int{
+		"queued":     0,
+		"delivered":  0,
+		"deferred":   0,
+		"bounced":    0,
+		"expired":    0,
+		"complained": 0,
+	}
+	if taskId <= 0 {
+		return stats
+	}
+
+	result, err := tenants.ScopeModel(ctx, g.DB().Model("recipient_info"), "tenant_id").
+		Ctx(ctx).
+		Where("task_id", taskId).
+		Where("engine", "kumomta").
+		Fields(
+			"coalesce(sum(case when injection_status='queued' then 1 else 0 end), 0) as queued",
+			"coalesce(sum(case when delivery_status='delivered' then 1 else 0 end), 0) as delivered",
+			"coalesce(sum(case when delivery_status='deferred' then 1 else 0 end), 0) as deferred",
+			"coalesce(sum(case when delivery_status='bounced' then 1 else 0 end), 0) as bounced",
+			"coalesce(sum(case when delivery_status='expired' then 1 else 0 end), 0) as expired",
+			"coalesce(sum(case when delivery_status='complained' then 1 else 0 end), 0) as complained",
+		).
+		One()
+	if err != nil {
+		g.Log().Warningf(ctx, "GetTaskKumoLifecycleStats: task=%d error=%v", taskId, err)
+		return stats
+	}
+	for key := range stats {
+		if value, ok := result[key]; ok {
+			stats[key] = value.Int()
+		}
+	}
 	return stats
 }
 
@@ -716,7 +793,7 @@ func GetTagsByIds(ctx context.Context, tagIds []int) ([]v1.TagInfo, error) {
 	}
 
 	var tags []v1.TagInfo
-	err := g.DB().Model("bm_tags").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").
 		WhereIn("id", tagIds).
 		Fields("id, name, create_time").
 		Scan(&tags)
@@ -754,7 +831,7 @@ func GetGroupsByIds(ctx context.Context, groupIds []int) (map[int]string, error)
 		Name string `json:"name"`
 	}
 
-	err := g.DB().Model("bm_contact_groups").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").
 		WhereIn("id", groupIds).
 		Fields("id, name").
 		Scan(&groups)

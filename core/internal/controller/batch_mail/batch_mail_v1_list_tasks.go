@@ -106,7 +106,7 @@ func (c *ControllerV1) ListTasks(ctx context.Context, req *v1.ListTasksReq) (res
 		detail.SentCount = task.SendsCount
 		detail.SuccessCount = task.DeliveredCount
 		detail.Deferred = task.DeferredCount
-		detail.ErrorCount = task.BouncedCount + task.DeferredCount
+		detail.ErrorCount = task.BouncedCount + task.DeferredCount + task.ExpiredCount + task.ComplainedCount
 
 		sentCount := detail.SentCount
 

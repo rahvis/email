@@ -4,6 +4,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"database/sql"
 	"github.com/gogf/gf/v2/frame/g"
@@ -24,7 +25,7 @@ func (c *ControllerV1) TagCreate(ctx context.Context, req *v1.TagCreateReq) (res
 		return
 	}
 
-	count, err := g.DB().Model("bm_tags").Where("group_id", req.GroupId).Where("name", req.Name).Count()
+	count, err := tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").Where("group_id", req.GroupId).Where("name", req.Name).Count()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check tag name")))
 		return
@@ -39,6 +40,7 @@ func (c *ControllerV1) TagCreate(ctx context.Context, req *v1.TagCreateReq) (res
 	_, err = g.DB().Model("bm_tags").
 		Ctx(ctx).
 		Insert(g.Map{
+			"tenant_id":   tenants.CurrentTenantID(ctx),
 			"group_id":    req.GroupId,
 			"name":        req.Name,
 			"create_time": now,

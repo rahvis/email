@@ -4,6 +4,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/mail_service"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"strings"
@@ -17,7 +18,13 @@ import (
 func (c *ControllerV1) AddMailForward(ctx context.Context, req *v1.AddMailForwardReq) (res *v1.AddMailForwardRes, err error) {
 	res = &v1.AddMailForwardRes{}
 
-	count, err := g.DB().Model("alias").Where("address=?", req.Address).Count()
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		res.SetError(err)
+		return res, nil
+	}
+
+	count, err := tenants.ScopeModel(ctx, g.DB().Model("alias"), "tenant_id").Where("address=?", req.Address).Count()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "check address failed: {}", err.Error())))
 		return res, nil
@@ -39,7 +46,7 @@ func (c *ControllerV1) AddMailForward(ctx context.Context, req *v1.AddMailForwar
 		return
 	}
 
-	count, err = g.DB().Model("domain").Where("domain=?", domain).Count()
+	count, err = tenants.ScopeModel(ctx, g.DB().Model("domain"), "tenant_id").Where("domain=?", domain).Count()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "check domain failed: {}", err.Error())))
 		return res, nil
@@ -59,6 +66,7 @@ func (c *ControllerV1) AddMailForward(ctx context.Context, req *v1.AddMailForwar
 
 	now := time.Now().Unix()
 	insert_data := g.Map{
+		"tenant_id":   tenantID,
 		"address":     req.Address,
 		"goto":        strings.Join(forwardUsers, ","),
 		"domain":      domain,

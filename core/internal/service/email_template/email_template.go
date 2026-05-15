@@ -2,6 +2,7 @@ package email_template
 
 import (
 	"billionmail-core/api/email_template/v1"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"time"
@@ -12,6 +13,7 @@ func CheckTemplateNameExists(ctx context.Context, name string) (bool, error) {
 	count, err := g.DB().Model("email_templates").
 		Ctx(ctx).
 		Where("temp_name", name).
+		Where("tenant_id", tenants.CurrentTenantID(ctx)).
 		Count()
 	return count > 0, err
 }
@@ -22,6 +24,7 @@ func CreateTemplate(ctx context.Context, name string, addType int, content, rend
 	result, err := g.DB().Model("email_templates").
 		Ctx(ctx).
 		Insert(g.Map{
+			"tenant_id":   tenants.CurrentTenantID(ctx),
 			"temp_name":   name,
 			"add_type":    addType,
 			"content":     content,
@@ -42,6 +45,7 @@ func DeleteTemplate(ctx context.Context, id int) error {
 	_, err := g.DB().Model("email_templates").
 		Ctx(ctx).
 		Where("id", id).
+		Where("tenant_id", tenants.CurrentTenantID(ctx)).
 		Delete()
 	return err
 }
@@ -52,6 +56,7 @@ func GetTemplate(ctx context.Context, id int) (*v1.EmailTemplate, error) {
 	err := g.DB().Model("email_templates").
 		Ctx(ctx).
 		Where("id", id).
+		Where("tenant_id", tenants.CurrentTenantID(ctx)).
 		Scan(&template)
 	return template, err
 }
@@ -74,6 +79,7 @@ func UpdateTemplate(ctx context.Context, id int, name, content, render string) e
 	_, err := g.DB().Model("email_templates").
 		Ctx(ctx).
 		Where("id", id).
+		Where("tenant_id", tenants.CurrentTenantID(ctx)).
 		Data(data).
 		Update()
 	return err
@@ -90,7 +96,8 @@ func GetTemplatesWithPage(ctx context.Context, page, pageSize int, keyword strin
 
 	model := g.DB().Model("email_templates").
 		Ctx(ctx).
-		Safe()
+		Safe().
+		Where("tenant_id", tenants.CurrentTenantID(ctx))
 
 	if keyword != "" {
 		model = model.WhereLike("temp_name", "%"+keyword+"%")
@@ -120,6 +127,7 @@ func GetTemplatesByID(ctx context.Context, id int) (*v1.EmailTemplate, error) {
 	err := g.DB().Model("email_templates").
 		Ctx(ctx).
 		Where("id", id).
+		Where("tenant_id", tenants.CurrentTenantID(ctx)).
 		Scan(&template)
 	return template, err
 }
@@ -131,6 +139,7 @@ func GetTemplatesAll(ctx context.Context) ([]*v1.EmailTemplate, error) {
 
 	err := g.DB().Model("email_templates").
 		Ctx(ctx).
+		Where("tenant_id", tenants.CurrentTenantID(ctx)).
 		//Fields(selectFields).
 		Order("create_time DESC").
 		Scan(&templates)

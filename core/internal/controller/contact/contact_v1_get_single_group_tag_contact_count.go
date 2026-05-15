@@ -4,6 +4,7 @@ import (
 	"billionmail-core/api/contact/v1"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"fmt"
 	"strconv"
@@ -31,7 +32,13 @@ func (c *ControllerV1) GetSingleGroupTagContactCount(ctx context.Context, req *v
 		return res, nil
 	}
 
-	model := g.DB().Model("bm_contacts c").
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		res.SetError(err)
+		return
+	}
+
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts c"), "c.tenant_id").
 		Where("c.active", 1).
 		Where("c.status", 1)
 
@@ -46,7 +53,7 @@ func (c *ControllerV1) GetSingleGroupTagContactCount(ctx context.Context, req *v
 				alias := "ct" + strconv.Itoa(i)
 				model = model.InnerJoin(
 					"bm_contact_tags "+alias,
-					fmt.Sprintf("c.id = %s.contact_id AND %s.tag_id = %d", alias, alias, tagId),
+					fmt.Sprintf("c.id = %s.contact_id AND %s.tenant_id = %d AND %s.tag_id = %d", alias, alias, tenantID, alias, tagId),
 				)
 			}
 		} else if req.TagLogic == "OR" {
@@ -56,7 +63,8 @@ func (c *ControllerV1) GetSingleGroupTagContactCount(ctx context.Context, req *v
 				inValues = append(inValues, strconv.Itoa(tagId))
 			}
 			subQuery := fmt.Sprintf(
-				"(SELECT DISTINCT contact_id FROM bm_contact_tags WHERE tag_id IN (%s)) ct",
+				"(SELECT DISTINCT contact_id FROM bm_contact_tags WHERE tenant_id = %d AND tag_id IN (%s)) ct",
+				tenantID,
 				strings.Join(inValues, ","),
 			)
 			model = model.InnerJoin(subQuery, "c.id = ct.contact_id")
@@ -67,7 +75,7 @@ func (c *ControllerV1) GetSingleGroupTagContactCount(ctx context.Context, req *v
 				tagIdStr = append(tagIdStr, strconv.Itoa(tagId))
 			}
 
-			subQuery := g.DB().Model("bm_contact_tags").
+			subQuery := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_tags"), "tenant_id").
 				Fields("DISTINCT contact_id").
 				WhereIn("tag_id", req.TagIds)
 			model = model.WhereNotIn("c.id", subQuery)

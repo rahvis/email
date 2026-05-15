@@ -6,6 +6,7 @@ import (
 
 // ContactGroup Entity
 type ContactGroup struct {
+	TenantId    int    `json:"tenant_id" dc:"Tenant ID"`
 	Id          int    `json:"id"          dc:"Group ID"`
 	Name        string `json:"name"        dc:"Group Name"`
 	Description string `json:"description" dc:"Description"`
@@ -35,6 +36,7 @@ type ContactGroup struct {
 
 // Contact Entity
 type Contact struct {
+	TenantId     int               `json:"tenant_id"    dc:"Tenant ID"`
 	Id           int               `json:"id"          dc:"Contact ID"`
 	Email        string            `json:"email"       dc:"Email Address"`
 	GroupId      int               `json:"group_id"    dc:"Group ID"`
@@ -49,6 +51,7 @@ type Contact struct {
 // EmailTemplate Entity
 type EmailTemplate struct {
 	Id         int    `json:"id"          description:"Template ID"     orm:"id"`
+	TenantId   int    `json:"tenant_id"   description:"Tenant ID"       orm:"tenant_id"`
 	TempName   string `json:"temp_name"   description:"Template Name"   orm:"temp_name"`
 	AddType    int    `json:"add_type"    description:"Type"           orm:"add_type"`
 	Content    string `json:"content"     description:"Email Content"   orm:"content"`
@@ -72,24 +75,30 @@ type EmailTask struct {
 	Unsubscribe    int    `json:"unsubscribe"     dc:"Allow Unsubscribe"`
 	Threads        int    `json:"threads"         dc:"Thread Count"`
 	//Etypes          string `json:"etypes"          dc:"Contact Group IDs"`
-	TrackOpen       int    `json:"track_open"      dc:"Track Opens"`
-	TrackClick      int    `json:"track_click"     dc:"Track Clicks"`
-	StartTime       int    `json:"start_time"      dc:"Start Time"`
-	CreateTime      int    `json:"create_time"     dc:"Create Time"`
-	UpdateTime      int    `json:"update_time"     dc:"Update Time"`
-	Remark          string `json:"remark"          dc:"Remark"`
-	Active          int    `json:"active"          dc:"Status"`
-	AddType         int    `json:"addType"          description:""`
-	SendsCount      int    `json:"sendsCount"       description:""`
-	DeliveredCount  int    `json:"deliveredCount"   description:""`
-	BouncedCount    int    `json:"bouncedCount"     description:""`
-	DeferredCount   int    `json:"deferredCount"    description:""`
-	StatsUpdateTime int    `json:"statsUpdateTime"  description:""`
-	GroupId         int    `json:"group_id"        dc:"Group ID"`
-	TagIdsRaw       string `json:"-"               dc:"Tag IDs (JSON string - internal use)" orm:"tag_ids"`
-	TagIds          []int  `json:"tag_ids"         dc:"Tag IDs (parsed array)"`
-	TagLogic        string `json:"tag_logic"       dc:"Tag Logic (AND/OR/NOT)"`
-	UseTagFilter    int    `json:"use_tag_filter"  dc:"Use Tag Filter (0: no, 1: yes)"`
+	TrackOpen        int    `json:"track_open"      dc:"Track Opens"`
+	TrackClick       int    `json:"track_click"     dc:"Track Clicks"`
+	StartTime        int    `json:"start_time"      dc:"Start Time"`
+	CreateTime       int    `json:"create_time"     dc:"Create Time"`
+	UpdateTime       int    `json:"update_time"     dc:"Update Time"`
+	Remark           string `json:"remark"          dc:"Remark"`
+	Active           int    `json:"active"          dc:"Status"`
+	AddType          int    `json:"addType"          description:""`
+	TenantId         int    `json:"tenant_id"        dc:"Tenant ID"`
+	DeliveryEngine   string `json:"delivery_engine"  dc:"Delivery Engine"`
+	SendingProfileId int    `json:"sending_profile_id" dc:"Sending Profile ID"`
+	SendsCount       int    `json:"sendsCount"       description:""`
+	DeliveredCount   int    `json:"deliveredCount"   description:""`
+	BouncedCount     int    `json:"bouncedCount"     description:""`
+	DeferredCount    int    `json:"deferredCount"    description:""`
+	QueuedCount      int    `json:"queuedCount"      description:""`
+	ExpiredCount     int    `json:"expiredCount"     description:""`
+	ComplainedCount  int    `json:"complainedCount"  description:""`
+	StatsUpdateTime  int    `json:"statsUpdateTime"  description:""`
+	GroupId          int    `json:"group_id"        dc:"Group ID"`
+	TagIdsRaw        string `json:"-"               dc:"Tag IDs (JSON string - internal use)" orm:"tag_ids"`
+	TagIds           []int  `json:"tag_ids"         dc:"Tag IDs (parsed array)"`
+	TagLogic         string `json:"tag_logic"       dc:"Tag Logic (AND/OR/NOT)"`
+	UseTagFilter     int    `json:"use_tag_filter"  dc:"Use Tag Filter (0: no, 1: yes)"`
 }
 
 // MarshalJSON implements custom JSON marshaling to convert TagIdsRaw to TagIds array
@@ -126,17 +135,28 @@ func (e *EmailTask) AfterFind() {
 }
 
 type RecipientInfo struct {
-	Id         int    `json:"id"          dc:"Recipient ID"`
-	TaskId     int    `json:"task_id"     dc:"Task ID"`
-	Recipient  string `json:"recipient"   dc:"Recipient Email"`
-	IsSent     int    `json:"is_sent"     dc:"Send Status"`
-	SentTime   int    `json:"sent_time"   dc:"Send Time"`
-	MessageId  string `json:"message_id"  dc:"Email Message-ID"`
-	CreateTime int    `json:"create_time" dc:"Create Time"`
+	Id                   int    `json:"id"                     dc:"Recipient ID"`
+	TenantId             int    `json:"tenant_id"              dc:"Tenant ID"`
+	TaskId               int    `json:"task_id"                dc:"Task ID"`
+	Recipient            string `json:"recipient"              dc:"Recipient Email"`
+	IsSent               int    `json:"is_sent"                dc:"Send Status"`
+	SentTime             int    `json:"sent_time"              dc:"Send Time"`
+	MessageId            string `json:"message_id"             dc:"Email Message-ID"`
+	Engine               string `json:"engine"                 dc:"Outbound Engine"`
+	InjectionStatus      string `json:"injection_status"       dc:"Injection Status"`
+	DeliveryStatus       string `json:"delivery_status"        dc:"Delivery Status"`
+	KumoQueue            string `json:"kumo_queue"             dc:"KumoMTA Queue"`
+	ProviderQueueId      string `json:"provider_queue_id"      dc:"Provider Queue ID"`
+	LastDeliveryEventAt  int    `json:"last_delivery_event_at" dc:"Last Delivery Event Time"`
+	LastDeliveryResponse string `json:"last_delivery_response" dc:"Last Delivery Response"`
+	AttemptCount         int    `json:"attempt_count"          dc:"Attempt Count"`
+	NextRetryAt          int    `json:"next_retry_at"          dc:"Next Retry Time"`
+	CreateTime           int    `json:"create_time"            dc:"Create Time"`
 }
 
 type AbnormalRecipient struct {
 	Id          int    `json:"id"          dc:"Group ID"`
+	TenantId    int    `json:"tenant_id"   dc:"Tenant ID"`
 	Recipient   string `json:"recipient"   dc:"Recipient Email"`
 	CreateTime  int    `json:"create_time" dc:"Create Time"`
 	Description string `json:"description" dc:"Description"`
@@ -154,8 +174,10 @@ type MailTemplateContext struct {
 type ApiTemplates struct {
 	Id                int    `json:"id" dc:"id"`
 	ApiKey            string `json:"api_key" dc:"api key"`
+	ApiKeyHash        string `json:"api_key_hash" dc:"api key hash"`
 	ApiName           string `json:"api_name" dc:"api name"`
 	TemplateId        int    `json:"template_id" dc:"template id"`
+	TenantId          int    `json:"tenant_id" dc:"tenant id"`
 	GroupId           int    `json:"group_id" dc:"group id"`
 	Subject           string `json:"subject" dc:"subject"`
 	Addresser         string `json:"addresser" dc:"addresser"`
@@ -163,6 +185,8 @@ type ApiTemplates struct {
 	Unsubscribe       int    `json:"unsubscribe" dc:"unsubscribe"`
 	TrackOpen         int    `json:"track_open" dc:"track open"`
 	TrackClick        int    `json:"track_click" dc:"track click"`
+	DeliveryEngine    string `json:"delivery_engine" dc:"delivery engine"`
+	SendingProfileId  int    `json:"sending_profile_id" dc:"sending profile id"`
 	Active            int    `json:"active" dc:"active"`
 	CreateTime        int    `json:"create_time" dc:"create time"`
 	UpdateTime        int    `json:"update_time" dc:"update time"`
@@ -171,16 +195,27 @@ type ApiTemplates struct {
 }
 
 type ApiMailLogs struct {
-	Id        int    `json:"id" dc:"id"`
-	ApiId     int    `json:"api_id" dc:"api id"`
-	Recipient string `json:"recipient" dc:"recipient"`
-	MessageId string `json:"message_id" dc:"message id"`
-	Addresser string `json:"addresser" dc:"addresser"`
-	SendTime  int    `json:"send_time" dc:"send time"`
+	Id                   int    `json:"id"                     dc:"id"`
+	ApiId                int    `json:"api_id"                 dc:"api id"`
+	TenantId             int    `json:"tenant_id"              dc:"tenant id"`
+	Recipient            string `json:"recipient"              dc:"recipient"`
+	MessageId            string `json:"message_id"             dc:"message id"`
+	Addresser            string `json:"addresser"              dc:"addresser"`
+	Engine               string `json:"engine"                 dc:"Outbound Engine"`
+	InjectionStatus      string `json:"injection_status"       dc:"Injection Status"`
+	DeliveryStatus       string `json:"delivery_status"        dc:"Delivery Status"`
+	KumoQueue            string `json:"kumo_queue"             dc:"KumoMTA Queue"`
+	ProviderQueueId      string `json:"provider_queue_id"      dc:"Provider Queue ID"`
+	LastDeliveryEventAt  int    `json:"last_delivery_event_at" dc:"Last Delivery Event Time"`
+	LastDeliveryResponse string `json:"last_delivery_response" dc:"Last Delivery Response"`
+	AttemptCount         int    `json:"attempt_count"          dc:"Attempt Count"`
+	NextRetryAt          int    `json:"next_retry_at"          dc:"Next Retry Time"`
+	SendTime             int    `json:"send_time"              dc:"send time"`
 }
 
 type Tag struct {
 	Id         int    `json:"id"          dc:"Tag ID"`
+	TenantId   int    `json:"tenant_id"   dc:"Tenant ID"`
 	GroupId    int    `json:"group_id"    dc:"Group ID"`
 	GroupName  string `json:"group_name" dc:"Group Name"`
 	Name       string `json:"name"       dc:"Tag Name"`

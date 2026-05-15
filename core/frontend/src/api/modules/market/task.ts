@@ -39,6 +39,8 @@ interface TaskAddParams {
 	threads: number
 	start_time: number
 	remark: string
+	delivery_engine?: 'tenant_default' | 'kumomta' | 'postfix' | 'local' | 'smtp' | 'kumo'
+	sending_profile_id?: number
 	tag_ids: number[]
 	tag_logic: string
 }

@@ -4,6 +4,7 @@ import (
 	"billionmail-core/api/contact/v1"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -50,7 +51,7 @@ func (c *ControllerV1) ListGroups(ctx context.Context, req *v1.ListGroupsReq) (r
 
 			token := GfMd5Short()
 			group.Token = token
-			_, err := g.DB().Model("bm_contact_groups").
+			_, err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").
 				Data(g.Map{"token": token}).
 				Where("id", group.Id).
 				Update()

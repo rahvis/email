@@ -80,6 +80,16 @@ const activeOptions = [
 	{ label: t('api.statusOptions.inactive'), value: 0 },
 ]
 
+const normalizeEngineLabel = (engine: Api['delivery_engine']) => {
+	if (engine === 'kumomta' || engine === 'kumo') {
+		return { label: 'KumoMTA', type: 'success' as const }
+	}
+	if (engine === 'tenant_default') {
+		return { label: t('market.task.edit.engineTenantDefault'), type: 'info' as const }
+	}
+	return { label: t('market.task.edit.enginePostfix'), type: 'default' as const }
+}
+
 const columns = ref<DataTableColumns<Api>>([
 	{
 		key: 'api_name',
@@ -99,9 +109,23 @@ const columns = ref<DataTableColumns<Api>>([
 	{
 		key: 'api_key',
 		title: t('api.columns.apiKey'),
-		width: '28%',
+		width: '24%',
 		maxWidth: 160,
 		render: row => <ApiKey class="w-94%" value={row.api_key}></ApiKey>,
+	},
+	{
+		key: 'delivery_engine',
+		title: t('api.columns.deliveryEngine'),
+		width: '10%',
+		maxWidth: 110,
+		render: row => {
+			const engine = normalizeEngineLabel(row.delivery_engine)
+			return (
+				<NTag size="small" type={engine.type} bordered={false}>
+					{engine.label}
+				</NTag>
+			)
+		},
 	},
 	{
 		key: 'send_count',
@@ -134,6 +158,28 @@ const columns = ref<DataTableColumns<Api>>([
 		maxWidth: 100,
 		render: row => {
 			return `${row.bounce_rate}%`
+		},
+	},
+	{
+		key: 'webhook_health',
+		title: t('api.columns.webhook'),
+		width: '10%',
+		maxWidth: 110,
+		render: row => {
+			if (row.delivery_engine !== 'kumomta' && row.delivery_engine !== 'tenant_default') {
+				return (
+					<NTag size="small" bordered={false}>
+						{t('api.webhook.local')}
+					</NTag>
+				)
+			}
+			return (
+				<NTag size="small" type={row.webhook_healthy ? 'success' : 'warning'} bordered={false}>
+					{row.webhook_healthy
+						? t('api.webhook.healthy', { seconds: row.webhook_lag_seconds || 0 })
+						: t('api.webhook.waiting')}
+				</NTag>
+			)
 		},
 	},
 	{

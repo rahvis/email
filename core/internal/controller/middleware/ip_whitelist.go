@@ -17,6 +17,7 @@ var ExcludedPaths = map[string]struct{}{
 	"/unsubscribe.html":              {},
 	"/unsubscribe_new.html":          {},
 	"/api/languages/get":             {},
+	"/api/kumo/events":               {},
 	"/api/unsubscribe/user_group":    {},
 	"/api/unsubscribe":               {},
 	"/api/unsubscribe_new":           {},

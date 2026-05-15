@@ -11,6 +11,7 @@ import (
 	"billionmail-core/internal/service/mail_service"
 	"billionmail-core/internal/service/multi_ip_domain"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"database/sql"
 	"fmt"
@@ -44,19 +45,27 @@ func convertBlacklistDetails(details []model.BlacklistDetail) []v1.BlacklistDeta
 
 func setCatchall(ctx context.Context, domainName, catchall string) error {
 	address := fmt.Sprintf("@%s", domainName)
+	tenantID := tenants.CurrentTenantID(ctx)
 	if catchall != "" {
 		var count int
-		count, err := g.DB().Model("alias").
+		model := g.DB().Model("alias").
 			Where("address", address).
-			Where("domain", domainName).
-			Count()
+			Where("domain", domainName)
+		if tenantID > 0 {
+			model = model.Where("tenant_id", tenantID)
+		}
+		count, err := model.Count()
 		if err != nil {
 			return fmt.Errorf("failed to check alias existence: %v", err)
 		}
 		if count > 0 {
-			_, err = g.DB().Model("alias").
+			updateModel := g.DB().Model("alias").
 				Where("address", address).
-				Where("domain", domainName).
+				Where("domain", domainName)
+			if tenantID > 0 {
+				updateModel = updateModel.Where("tenant_id", tenantID)
+			}
+			_, err = updateModel.
 				Data(g.Map{"goto": catchall, "active": 1, "update_time": time.Now().Unix()}).
 				Update()
 			if err != nil {
@@ -64,6 +73,7 @@ func setCatchall(ctx context.Context, domainName, catchall string) error {
 			}
 		} else {
 			_, err = g.DB().Model("alias").Data(g.Map{
+				"tenant_id":   tenantID,
 				"address":     address,
 				"goto":        catchall,
 				"domain":      domainName,
@@ -77,9 +87,13 @@ func setCatchall(ctx context.Context, domainName, catchall string) error {
 		}
 	} else {
 		// catchall is empty, disabled
-		_, _ = g.DB().Model("alias").
+		updateModel := g.DB().Model("alias").
 			Where("address", address).
-			Where("domain", domainName).
+			Where("domain", domainName)
+		if tenantID > 0 {
+			updateModel = updateModel.Where("tenant_id", tenantID)
+		}
+		_, _ = updateModel.
 			Data(g.Map{"active": 0, "update_time": time.Now().Unix()}).
 			Update()
 	}
@@ -87,6 +101,7 @@ func setCatchall(ctx context.Context, domainName, catchall string) error {
 }
 
 func Add(ctx context.Context, domain *v1.Domain) error {
+	domain.TenantId = tenants.CurrentTenantID(ctx)
 	domain.CreateTime = time.Now().Unix()
 	domain.Active = 1
 
@@ -147,10 +162,15 @@ func Add(ctx context.Context, domain *v1.Domain) error {
 func Update(ctx context.Context, updateData map[string]interface{}) error {
 
 	domainName, _ := updateData["domain"].(string)
+	tenantID := tenants.CurrentTenantID(ctx)
 
-	_, err := g.DB().Model("domain").
+	model := g.DB().Model("domain").
 		Ctx(ctx).
-		Where("domain", domainName).
+		Where("domain", domainName)
+	if tenantID > 0 {
+		model = model.Where("tenant_id", tenantID)
+	}
+	_, err := model.
 		Update(updateData)
 
 	if err != nil {
@@ -169,22 +189,35 @@ func Update(ctx context.Context, updateData map[string]interface{}) error {
 }
 
 func Delete(ctx context.Context, domainName string) error {
-	_, err := g.DB().Model("domain").
+	tenantID := tenants.CurrentTenantID(ctx)
+	model := g.DB().Model("domain").
 		Ctx(ctx).
-		Where("domain", domainName).
+		Where("domain", domainName)
+	if tenantID > 0 {
+		model = model.Where("tenant_id", tenantID)
+	}
+	_, err := model.
 		Delete()
 
 	if err == nil {
 		// remove associated mailboxes
-		_, err = g.DB().Model("mailbox").
+		mailboxModel := g.DB().Model("mailbox").
 			Ctx(ctx).
-			Where("domain", domainName).
+			Where("domain", domainName)
+		if tenantID > 0 {
+			mailboxModel = mailboxModel.Where("tenant_id", tenantID)
+		}
+		_, err = mailboxModel.
 			Delete()
 
 		// remove associated alias
-		_, err = g.DB().Model("alias").
+		aliasModel := g.DB().Model("alias").
 			Ctx(ctx).
-			Where("domain", domainName).
+			Where("domain", domainName)
+		if tenantID > 0 {
+			aliasModel = aliasModel.Where("tenant_id", tenantID)
+		}
+		_, err = aliasModel.
 			Delete()
 
 	}
@@ -193,7 +226,7 @@ func Delete(ctx context.Context, domainName string) error {
 }
 
 func Get(ctx context.Context, keyword string, page, pageSize int) ([]v1.Domain, int, error) {
-	m := g.DB().Model("domain").Order("create_time", "desc")
+	m := tenants.ScopeModel(ctx, g.DB().Model("domain"), "tenant_id").Order("create_time", "desc")
 
 	if keyword != "" {
 		m = m.WhereLike("domain", fmt.Sprintf("%%%s%%", keyword))
@@ -291,6 +324,7 @@ func Get(ctx context.Context, keyword string, page, pageSize int) ([]v1.Domain, 
 			var alias Alias
 			err := g.DB().Model("alias").
 				Where("address = ? AND domain = ?", address, domain.Domain).
+				Where("tenant_id", domain.TenantId).
 				Scan(&alias)
 
 			if err != nil {
@@ -347,7 +381,7 @@ func Get(ctx context.Context, keyword string, page, pageSize int) ([]v1.Domain, 
 }
 
 func All(ctx context.Context) ([]v1.Domain, error) {
-	m := g.DB().Model("domain")
+	m := tenants.ScopeModel(ctx, g.DB().Model("domain"), "tenant_id")
 
 	var domains []v1.Domain
 	err := m.Scan(&domains)

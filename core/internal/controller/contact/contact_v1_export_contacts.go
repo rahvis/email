@@ -8,6 +8,7 @@ import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"bytes"
 	"context"
 	"encoding/csv"
@@ -182,7 +183,7 @@ func (c *ControllerV1) ExportContacts(ctx context.Context, req *v1.ExportContact
 	}
 
 	var groups []*entity.ContactGroup
-	err = g.DB().Model("bm_contact_groups").Ctx(ctx).WhereIn("id", req.GroupIds).Scan(&groups)
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Ctx(ctx).WhereIn("id", req.GroupIds).Scan(&groups)
 	groupNames := make([]string, 0, len(groups))
 	for _, group := range groups {
 		groupNames = append(groupNames, group.Name)

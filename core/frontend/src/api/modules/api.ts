@@ -27,6 +27,11 @@ type APIParams = {
 	unsubscribe: number
 	active: number
 	ip_whitelist: string[]
+	track_open?: number
+	track_click?: number
+	group_id?: number
+	delivery_engine?: 'tenant_default' | 'kumomta' | 'postfix' | 'local' | 'smtp' | 'kumo'
+	sending_profile_id?: number
 }
 
 export const createApi = (params: APIParams) => {

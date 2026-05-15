@@ -3,6 +3,7 @@ package tags
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -19,7 +20,7 @@ func (c *ControllerV1) TagDelete(ctx context.Context, req *v1.TagDeleteReq) (res
 		Id   int    `json:"id"`
 		Name string `json:"name"`
 	}
-	err = g.DB().Model("bm_tags").Where("id", req.Id).Scan(&tag)
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").Where("id", req.Id).Scan(&tag)
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check tag")))
 		return
@@ -31,14 +32,14 @@ func (c *ControllerV1) TagDelete(ctx context.Context, req *v1.TagDeleteReq) (res
 
 	// 检查是否有联系人使用该标签 todo 删除标签同时删除关联
 	var contactCount int
-	contactCount, err = g.DB().Model("bm_contact_tags").Where("tag_id", req.Id).Count()
+	contactCount, err = tenants.ScopeModel(ctx, g.DB().Model("bm_contact_tags"), "tenant_id").Where("tag_id", req.Id).Count()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check tag usage")))
 		return
 	}
 	if contactCount > 0 {
 		// 删除关联
-		_, err = g.DB().Model("bm_contact_tags").
+		_, err = tenants.ScopeModel(ctx, g.DB().Model("bm_contact_tags"), "tenant_id").
 			Ctx(ctx).
 			Where("tag_id", req.Id).
 			Delete()
@@ -51,7 +52,7 @@ func (c *ControllerV1) TagDelete(ctx context.Context, req *v1.TagDeleteReq) (res
 	}
 
 	// 删除标签
-	_, err = g.DB().Model("bm_tags").
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").
 		Ctx(ctx).
 		Where("id", req.Id).
 		Delete()

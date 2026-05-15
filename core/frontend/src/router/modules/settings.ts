@@ -51,6 +51,12 @@ const route: RouteRecordRaw = {
 					meta: { title: 'Send Queue', titleKey: '' },
 					component: () => import('@/views/settings/send-queue/index.vue'),
 				},
+				{
+					path: 'kumo',
+					name: 'SettingsKumo',
+					meta: { title: 'KumoMTA', titleKey: '' },
+					component: () => import('@/views/settings/kumo/index.vue'),
+				},
 			],
 		},
 		{

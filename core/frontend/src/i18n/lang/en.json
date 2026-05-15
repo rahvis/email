@@ -148,10 +148,14 @@
 		}
 	},
 	"overview": {
+		"queued": "Queued",
 		"delivered": "Delivered",
+		"deferred": "Deferred",
 		"opened": "Opened",
 		"clicked": "Clicked",
 		"bounced": "Bounced",
+		"expired": "Expired",
+		"complained": "Complained",
 		"delayedQueue": "Delayed Queue",
 		"mailProviders": "Mail Providers",
 		"sendStats": "Send Statistics",
@@ -328,6 +332,13 @@
 				"ipWarmupTip": "Enabling this will limit the sending rate",
 				"trackClick": "Track Clicks",
 				"trackOpen": "Track Opens",
+				"deliveryEngine": "Delivery engine",
+				"enginePostfix": "Local Postfix",
+				"engineKumo": "KumoMTA",
+				"engineTenantDefault": "Tenant default",
+				"sendingProfile": "Sending profile",
+				"sendingProfilePlaceholder": "Profile ID",
+				"sendingProfileTip": "Optional until tenant profiles are configured",
 				"unsubscribeLink": "Unsubscribe link",
 				"threads": "Threads",
 				"threadsAuto": "Auto",
@@ -1548,11 +1559,18 @@
 		"columns": {
 			"apiName": "API Name",
 			"apiKey": "API Key",
+			"deliveryEngine": "Engine",
 			"sendCount": "Send Count",
 			"openRate": "Open Rate",
 			"clickRate": "Click Rate",
 			"bounceRate": "Bounce Rate",
+			"webhook": "Webhook",
 			"status": "Status"
+		},
+		"webhook": {
+			"healthy": "{seconds}s lag",
+			"waiting": "No events",
+			"local": "Local"
 		},
 		"statusLabels": {
 			"active": "Active",

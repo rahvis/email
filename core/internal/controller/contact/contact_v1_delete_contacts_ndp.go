@@ -4,6 +4,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -20,7 +21,7 @@ func (c *ControllerV1) DeleteContactsNDP(ctx context.Context, req *v1.DeleteCont
 		return
 	}
 	var contacts []*entity.Contact
-	_ = g.DB().Model("bm_contacts").WhereIn("id", req.Ids).Scan(&contacts)
+	_ = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").WhereIn("id", req.Ids).Scan(&contacts)
 	// Extract all emails
 	emails := make([]string, 0, len(contacts))
 	for _, contact := range contacts {
@@ -28,7 +29,7 @@ func (c *ControllerV1) DeleteContactsNDP(ctx context.Context, req *v1.DeleteCont
 	}
 	emailsStr := strings.Join(emails, ", ")
 
-	_, err = g.DB().Model("bm_contacts").WhereIn("id", req.Ids).Delete()
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").WhereIn("id", req.Ids).Delete()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to delete contacts: {}", err.Error())))
 		return

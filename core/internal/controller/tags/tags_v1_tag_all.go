@@ -4,6 +4,7 @@ import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -13,7 +14,7 @@ import (
 func (c *ControllerV1) TagAll(ctx context.Context, req *v1.TagAllReq) (res *v1.TagAllRes, err error) {
 	res = &v1.TagAllRes{}
 
-	model := g.DB().Model("bm_tags")
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id")
 	total, err := model.Count()
 	if err != nil {
 		return nil, err

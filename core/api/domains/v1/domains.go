@@ -37,6 +37,7 @@ type CertInfo struct {
 
 // Domain defines the domain entity
 type Domain struct {
+	TenantId       int64          `json:"tenant_id"     dc:"Tenant ID"`
 	Domain         string         `json:"domain"        dc:"Domain name"`
 	ARecord        string         `json:"a_record"      dc:"A record"`
 	Mailboxes      int            `json:"mailboxes"     dc:"Number of mailboxes created"`

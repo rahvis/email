@@ -8,6 +8,7 @@ import (
 	"billionmail-core/api/mail_services/v1"
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 )
@@ -15,7 +16,7 @@ import (
 func (c *ControllerV1) GetBccList(ctx context.Context, req *v1.GetBccListReq) (res *v1.GetBccListRes, err error) {
 	res = &v1.GetBccListRes{}
 
-	model := g.DB().Model("bm_bcc")
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_bcc"), "tenant_id")
 
 	if req.Type != "" {
 		model = model.Where("type", req.Type)
@@ -24,8 +25,8 @@ func (c *ControllerV1) GetBccList(ctx context.Context, req *v1.GetBccListReq) (r
 		model = model.Where("domain", req.Domain)
 	}
 	if req.SearchKey != "" {
-		model = model.WhereOr("address LIKE ?", "%"+req.SearchKey+"%").
-			WhereOr("goto LIKE ?", "%"+req.SearchKey+"%")
+		pattern := "%" + req.SearchKey + "%"
+		model = model.Where("(address LIKE ? OR goto LIKE ?)", pattern, pattern)
 	}
 
 	total, err := model.Count()

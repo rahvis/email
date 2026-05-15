@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
 	"billionmail-core/internal/service/relay"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"strings"
 	"time"
@@ -15,6 +16,11 @@ import (
 
 func (c *ControllerV1) CreateRelayConfig(ctx context.Context, req *v1.CreateRelayConfigReq) (res *v1.CreateRelayConfigRes, err error) {
 	res = &v1.CreateRelayConfigRes{}
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		res.SetError(err)
+		return res, nil
+	}
 
 	if len(req.SenderDomains) > 0 {
 
@@ -24,7 +30,7 @@ func (c *ControllerV1) CreateRelayConfig(ctx context.Context, req *v1.CreateRela
 			domains = append(domains, domain)
 		}
 
-		count, err := g.DB().Model("bm_relay_domain_mapping").WhereIn("sender_domain", domains).Count()
+		count, err := tenants.ScopeModel(ctx, g.DB().Model("bm_relay_domain_mapping"), "tenant_id").WhereIn("sender_domain", domains).Count()
 		if err != nil {
 			res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check domain mapping: {}", err.Error())))
 			return res, nil
@@ -67,6 +73,7 @@ func (c *ControllerV1) CreateRelayConfig(ctx context.Context, req *v1.CreateRela
 	unixTime := int(now.Unix())
 
 	configData := g.Map{
+		"tenant_id":       tenantID,
 		"remark":          req.Remark,
 		"rtype":           req.Rtype,
 		"relay_host":      req.RelayHost,
@@ -112,6 +119,7 @@ func (c *ControllerV1) CreateRelayConfig(ctx context.Context, req *v1.CreateRela
 	for _, domain := range req.SenderDomains {
 
 		mappingData := g.Map{
+			"tenant_id":     tenantID,
 			"relay_id":      relayId,
 			"sender_domain": domain,
 			"create_time":   unixTime,

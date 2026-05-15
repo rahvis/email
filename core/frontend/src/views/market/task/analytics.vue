@@ -70,6 +70,12 @@ const dateRange = ref(getDayTimeRange())
 const providers = ref<MailProvider[]>([])
 
 const rateData = reactive<RateData>({
+	queued: { label: t('overview.queued'), value: 0, unit: '' },
+	delivered: { label: t('overview.delivered'), value: 0, unit: '' },
+	deferred: { label: t('overview.deferred'), value: 0, unit: '' },
+	bounced: { label: t('overview.bounced'), value: 0, unit: '' },
+	expired: { label: t('overview.expired'), value: 0, unit: '' },
+	complained: { label: t('overview.complained'), value: 0, unit: '' },
 	delivery_rate: { label: t('overview.delivered'), value: 0, unit: '%' },
 	open_rate: { label: t('overview.opened'), value: 0, unit: '%' },
 	click_rate: { label: t('overview.clicked'), value: 0, unit: '%' },
@@ -144,8 +150,8 @@ getDetails()
 
 <style lang="scss" scoped>
 .metrics-cards {
-	display: flex;
-	justify-content: space-between;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 	gap: 20px;
 	margin-bottom: 20px;
 }

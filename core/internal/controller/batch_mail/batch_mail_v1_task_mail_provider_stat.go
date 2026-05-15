@@ -3,6 +3,7 @@ package batch_mail
 import (
 	"billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -50,6 +51,9 @@ func calculateDomainStats(ctx context.Context, taskId int, status int) ([]map[st
 	query = query.LeftJoin("mailstat_message_ids mi", "sm.postfix_message_id=mi.postfix_message_id")
 	query = query.LeftJoin("recipient_info ri", "mi.message_id=ri.message_id")
 	query = query.Where("ri.task_id", taskId)
+	if tenantID := tenants.CurrentTenantID(ctx); tenantID > 0 {
+		query = query.Where("ri.tenant_id", tenantID)
+	}
 
 	// add filter conditions based on status
 	if status == 1 {

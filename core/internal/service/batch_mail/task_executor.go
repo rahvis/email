@@ -178,10 +178,19 @@ const (
 
 // SendResult send result
 type SendResult struct {
-	RecipientID int
-	Success     bool
-	MessageID   string
-	Error       error
+	RecipientID     int
+	Success         bool
+	MessageID       string
+	Engine          string
+	InjectionStatus string
+	DeliveryStatus  string
+	KumoQueue       string
+	ProviderQueueID string
+	LastResponse    string
+	Retryable       bool
+	Suppressed      bool
+	NextRetryAt     int64
+	Error           error
 }
 
 // NewTaskExecutor create task executor
@@ -273,7 +282,7 @@ func (e *TaskExecutor) ProcessTask(ctx context.Context) error {
 	e.configureRateController(task)
 
 	// get template info
-	template, err := e.getTemplateInfo(ctx, task.TemplateId)
+	template, err := e.getTemplateInfo(ctx, task.TenantId, task.TemplateId)
 	if err != nil {
 		g.Log().Error(ctx, "failed to get template: %v", err)
 		return fmt.Errorf("failed to get template: %w", err)
@@ -463,7 +472,10 @@ func (e *TaskExecutor) resetFetchedRecords(taskId int) (int64, error) {
 	result, err := g.DB().Model("recipient_info").
 		Where("task_id", taskId).
 		Where("is_sent", 2).
-		Data(g.Map{"is_sent": 0}).
+		Data(g.Map{
+			"is_sent":          0,
+			"injection_status": "pending",
+		}).
 		Update()
 
 	if err != nil {
@@ -627,7 +639,7 @@ func (e *TaskExecutor) processTaskRecipients(ctx context.Context, task *entity.E
 
 					task = e.taskConfig
 
-					template, err := e.getTemplateInfo(ctx, task.TemplateId)
+					template, err := e.getTemplateInfo(ctx, task.TenantId, task.TemplateId)
 					if err != nil {
 						g.Log().Errorf(ctx, "failed to get updated template: %v", err)
 					} else {
@@ -681,6 +693,7 @@ func (e *TaskExecutor) getNextRecipientBatch(ctx context.Context, taskId, lastId
 	err := g.DB().Model("recipient_info").
 		Where("task_id", taskId).
 		Where("is_sent", 0).
+		Where("(next_retry_at = 0 OR next_retry_at <= ?)", time.Now().Unix()).
 		Where("id > ?", lastId).
 		Order("id ASC").
 		Limit(batchSize).
@@ -697,7 +710,11 @@ func (e *TaskExecutor) getNextRecipientBatch(ctx context.Context, taskId, lastId
 
 	_, err = g.DB().Model("recipient_info").
 		WhereIn("id", ids).
-		Data(g.Map{"is_sent": 2}).
+		Data(g.Map{
+			"is_sent":          2,
+			"injection_status": "rendering",
+			"delivery_status":  "pending",
+		}).
 		Update()
 
 	if err != nil {
@@ -819,6 +836,8 @@ func (e *TaskExecutor) processRecipientBatch(ctx context.Context, task *entity.E
 			if result.Success {
 				e.sentCount.Add(1)
 				e.consecutiveFailures.Store(0)
+			} else if result.Suppressed {
+				e.sentCount.Add(1)
 			} else {
 				e.failedCount.Add(1)
 				failures := e.consecutiveFailures.Add(1)
@@ -912,7 +931,7 @@ func (e *TaskExecutor) processSendResults(ctx context.Context, resultChan <-chan
 	const flushInterval = 200 * time.Millisecond
 
 	successResults := make([]*SendResult, 0, batchSize)
-	failedIDs := make([]int, 0, batchSize)
+	failedResults := make([]*SendResult, 0, batchSize)
 
 	// create ticker to flush results
 	ticker := time.NewTicker(flushInterval)
@@ -920,79 +939,112 @@ func (e *TaskExecutor) processSendResults(ctx context.Context, resultChan <-chan
 
 	// flush function
 	flushUpdates := func() {
-		if len(successResults) == 0 && len(failedIDs) == 0 {
+		if len(successResults) == 0 && len(failedResults) == 0 {
 			return
 		}
 
 		// process success records
 		if len(successResults) > 0 {
-			// prepare batch update
 			now := time.Now().Unix()
 			e.lastActivity = time.Now()
-			// batch update recipient status
-			// prepare batch update SQL
-			if len(successResults) > 0 {
-				// method 2: use SQL batch update
-				ids := make([]interface{}, 0, len(successResults))
-				messageIds := make(map[int]string, len(successResults))
 
-				for _, result := range successResults {
-					ids = append(ids, result.RecipientID)
-					messageIds[result.RecipientID] = result.MessageID
+			for _, result := range successResults {
+				engine := result.Engine
+				if engine == "" {
+					engine = "postfix"
 				}
-
-				// step 1: batch update is sent and sent time
+				injectionStatus := result.InjectionStatus
+				if injectionStatus == "" {
+					injectionStatus = "queued"
+				}
+				deliveryStatus := result.DeliveryStatus
+				if deliveryStatus == "" {
+					deliveryStatus = "pending"
+				}
+				updateData := g.Map{
+					"is_sent":                1,
+					"sent_time":              now,
+					"message_id":             strings.Trim(result.MessageID, "<>"),
+					"engine":                 engine,
+					"injection_status":       injectionStatus,
+					"delivery_status":        deliveryStatus,
+					"kumo_queue":             result.KumoQueue,
+					"provider_queue_id":      result.ProviderQueueID,
+					"last_delivery_response": result.LastResponse,
+					"attempt_count":          gdb.Raw("attempt_count + 1"),
+					"next_retry_at":          0,
+				}
 				_, err := g.DB().Model("recipient_info").
-					WhereIn("id", ids).
-					Data(g.Map{
-						"is_sent":   1,
-						"sent_time": now,
-					}).
+					Where("id", result.RecipientID).
+					Data(updateData).
 					Update()
-
 				if err != nil {
-					g.Log().Error(ctx, "batch update recipient status failed: %v", err)
-				} else {
-					// step 2: update each recipient's message ID
-					for id, messageID := range messageIds {
-						// remove message_id external < >
-						messageID = strings.Trim(messageID, "<>")
-						_, err := g.DB().Model("recipient_info").
-							Where("id", id).
-							Data(g.Map{"message_id": messageID}).
-							Update()
-
-						if err != nil {
-							g.Log().Error(ctx, "update recipient(ID:%d) message ID failed: %v", id, err)
-						}
-					}
-
-					g.Log().Debug(ctx, "successfully batch updated %d recipient status", len(successResults))
+					g.Log().Error(ctx, "update recipient(ID:%d) success status failed: %v", result.RecipientID, err)
 				}
 			}
+			g.Log().Debug(ctx, "successfully updated %d recipient success statuses", len(successResults))
 
 			// clear success results
 			successResults = successResults[:0]
 		}
 
-		// mark failed records with is_sent=3 (failed) for retry
-		if len(failedIDs) > 0 {
+		// process failed records
+		if len(failedResults) > 0 {
 			now := time.Now().Unix()
-			_, err := g.DB().Model("recipient_info").
-				WhereIn("id", failedIDs).
-				Data(g.Map{
-					"is_sent":   3,
-					"sent_time": now,
-				}).
-				Update()
+			for _, result := range failedResults {
+				engine := result.Engine
+				if engine == "" {
+					engine = "postfix"
+				}
+				injectionStatus := result.InjectionStatus
+				if injectionStatus == "" {
+					injectionStatus = "failed"
+				}
+				deliveryStatus := result.DeliveryStatus
+				if deliveryStatus == "" {
+					deliveryStatus = "unknown"
+				}
+				lastResponse := result.LastResponse
+				if lastResponse == "" && result.Error != nil {
+					lastResponse = sanitizeCampaignResponse(result.Error.Error())
+				}
+				isSent := 3
+				nextRetryAt := int64(0)
+				if result.Retryable {
+					isSent = 0
+					nextRetryAt = result.NextRetryAt
+					if nextRetryAt == 0 {
+						nextRetryAt = nextCampaignRetryAt(0)
+					}
+				}
 
-			if err != nil {
-				g.Log().Error(ctx, "batch update failed recipients status failed: %v", err)
-			} else {
-				g.Log().Warning(ctx, "marked %d recipients as failed (is_sent=3)", len(failedIDs))
+				updateData := g.Map{
+					"is_sent":                isSent,
+					"sent_time":              now,
+					"engine":                 engine,
+					"injection_status":       injectionStatus,
+					"delivery_status":        deliveryStatus,
+					"kumo_queue":             result.KumoQueue,
+					"provider_queue_id":      result.ProviderQueueID,
+					"last_delivery_response": lastResponse,
+					"attempt_count":          gdb.Raw("attempt_count + 1"),
+					"next_retry_at":          nextRetryAt,
+				}
+				if result.MessageID != "" {
+					updateData["message_id"] = strings.Trim(result.MessageID, "<>")
+				}
+
+				_, err := g.DB().Model("recipient_info").
+					Where("id", result.RecipientID).
+					Data(updateData).
+					Update()
+				if err != nil {
+					g.Log().Error(ctx, "update recipient(ID:%d) failure status failed: %v", result.RecipientID, err)
+				}
 			}
 
-			failedIDs = failedIDs[:0]
+			g.Log().Warning(ctx, "updated %d recipient failure statuses", len(failedResults))
+			failedResults = failedResults[:0]
 		}
 	}
 
@@ -1009,14 +1061,14 @@ func (e *TaskExecutor) processSendResults(ctx context.Context, resultChan <-chan
 			if result.Success {
 				successResults = append(successResults, result)
 			} else {
-				failedIDs = append(failedIDs, result.RecipientID)
+				failedResults = append(failedResults, result)
 
 				g.Log().Debugf(ctx, "send email to recipient %d failed: %v",
 					result.RecipientID, result.Error)
 			}
 
 			// reach batch processing size, flush
-			if len(successResults)+len(failedIDs) >= batchSize {
+			if len(successResults)+len(failedResults) >= batchSize {
 				flushUpdates()
 			}
 
@@ -1033,10 +1085,11 @@ func (e *TaskExecutor) processSendResults(ctx context.Context, resultChan <-chan
 }
 
 // getTemplateInfo get template info
-func (e *TaskExecutor) getTemplateInfo(ctx context.Context, templateId int) (*entity.EmailTemplate, error) {
+func (e *TaskExecutor) getTemplateInfo(ctx context.Context, tenantID int, templateId int) (*entity.EmailTemplate, error) {
 	var template entity.EmailTemplate
 
 	err := g.DB().Model("email_templates").
+		Where("tenant_id", tenantID).
 		Where("id", templateId).
 		Scan(&template)
 
@@ -1077,7 +1130,7 @@ func (e *TaskExecutor) personalizeEmail(ctx context.Context, content string, tas
 
 	var contact entity.Contact
 	// 优先按任务分组精确匹配，再按创建时间倒序获取最新一条
-	q := g.DB().Model("bm_contacts").Where("email", recipient.Recipient)
+	q := g.DB().Model("bm_contacts").Where("tenant_id", task.TenantId).Where("email", recipient.Recipient)
 	if task.GroupId > 0 {
 		q = q.Where("group_id", task.GroupId)
 	}
@@ -1087,13 +1140,13 @@ func (e *TaskExecutor) personalizeEmail(ctx context.Context, content string, tas
 
 	// If no records are found or the grouping does not match, revert to retrieving only the latest record based on the email address.
 	if contact.Id == 0 {
-		if err := g.DB().Model("bm_contacts").Where("email", recipient.Recipient).OrderDesc("create_time").Limit(1).Scan(&contact); err != nil {
+		if err := g.DB().Model("bm_contacts").Where("tenant_id", task.TenantId).Where("email", recipient.Recipient).OrderDesc("create_time").Limit(1).Scan(&contact); err != nil {
 			g.Log().Error(ctx, "fallback get contact by email failed: %v", err)
 		}
 	}
 
 	var emailtask entity.EmailTask
-	err := g.DB().Model("email_tasks").Where("id", task.Id).Scan(&emailtask)
+	err := g.DB().Model("email_tasks").Where("tenant_id", task.TenantId).Where("id", task.Id).Scan(&emailtask)
 	if err != nil {
 		g.Log().Error(ctx, "get task info failed: %v", err)
 		emailtask = *task
@@ -1198,59 +1251,7 @@ func (e *TaskExecutor) sendEmail(ctx context.Context, task *entity.EmailTask, re
 	// get rendered content and subject
 	renderedContent, renderedSubject := e.personalizeEmail(ctx, content, currentTask, recipient)
 
-	sender, err := mail_service.NewEmailSenderWithLocal(currentTask.Addresser)
-	if err != nil {
-		g.Log().Error(ctx, "create email sender failed: %v", err)
-		return &SendResult{
-			RecipientID: recipient.Id,
-			Success:     false,
-			Error:       fmt.Errorf("create email sender failed: %w", err),
-		}
-	}
-	defer sender.Close()
-	// set message ID
-	messageID := sender.GenerateMessageID()
-
-	//Tracking emails
-	baseURL := domains.GetBaseURLBySender(currentTask.Addresser)
-	mail_tracker := maillog_stat.NewMailTracker(renderedContent, currentTask.Id, messageID, recipient.Recipient, baseURL)
-	if currentTask.TrackClick == 1 {
-		mail_tracker.TrackLinks()
-	}
-	if currentTask.TrackOpen == 1 {
-		mail_tracker.AppendTrackingPixel()
-	}
-	renderedContent = mail_tracker.GetHTML()
-
-	// create email message with rendered subject
-	message := mail_service.NewMessage(renderedSubject, renderedContent)
-	message.SetMessageID(messageID)
-
-	// set sender display name
-	if currentTask.FullName != "" {
-		message.SetRealName(currentTask.FullName)
-	}
-
-	//g.Log().Infof(ctx, "sendEmail - final check before sending: sender=%s, display_name=%s, subject=%s, recipient=%s",
-	//	currentTask.Addresser, currentTask.FullName, renderedSubject, recipient.Recipient)
-
-	// send email
-	err = sender.Send(message, []string{recipient.Recipient})
-	if err != nil {
-		g.Log().Error(ctx, "send email to %s failed: %v", recipient.Recipient, err)
-		return &SendResult{
-			RecipientID: recipient.Id,
-			Success:     false,
-			Error:       fmt.Errorf("send email failed: %w", err),
-		}
-	}
-
-	return &SendResult{
-		RecipientID: recipient.Id,
-		MessageID:   messageID,
-		Success:     true,
-		Error:       nil,
-	}
+	return e.sendPreparedCampaignMessage(ctx, currentTask, recipient, renderedContent, renderedSubject)
 }
 
 // sendEmailMock simulates sending an email and records it in the database.

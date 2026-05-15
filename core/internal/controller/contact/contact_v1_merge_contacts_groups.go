@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -20,6 +21,10 @@ func (c *ControllerV1) MergeContactsGroups(ctx context.Context, req *v1.MergeCon
 	const batchSize = 1000 // Batch size
 
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		tenantID, tenantErr := tenants.RequireTenantID(ctx)
+		if tenantErr != nil {
+			return tenantErr
+		}
 
 		_, err := contact.GetGroup(ctx, req.TargetGroup)
 		if err != nil {
@@ -39,7 +44,7 @@ func (c *ControllerV1) MergeContactsGroups(ctx context.Context, req *v1.MergeCon
 		for {
 			// 1. Batch get source group contacts
 			var contacts []*entity.Contact
-			err = g.DB().Model("bm_contacts").
+			err = tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 				Where("group_id IN(?)", req.SourceGroups).
 				Limit(batchSize).
 				Offset(offset).
@@ -77,7 +82,7 @@ func (c *ControllerV1) MergeContactsGroups(ctx context.Context, req *v1.MergeCon
 
 		// 3. Batch check existing contacts in the target group
 		var existingEmails []string
-		err = g.DB().Model("bm_contacts").
+		err = tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 			Fields("email").
 			Where("group_id = ?", req.TargetGroup).
 			Where("email IN (?)", getMapKeys(emailStatusMap)).
@@ -101,6 +106,7 @@ func (c *ControllerV1) MergeContactsGroups(ctx context.Context, req *v1.MergeCon
 			// If the email is not in the target group, add it to the insertion list
 			if !existingEmailMap[email] {
 				insertData = append(insertData, g.Map{
+					"tenant_id":   tenantID,
 					"email":       email,
 					"group_id":    req.TargetGroup,
 					"active":      status,
@@ -116,7 +122,7 @@ func (c *ControllerV1) MergeContactsGroups(ctx context.Context, req *v1.MergeCon
 				end = len(insertData)
 			}
 
-			_, err = g.DB().Model("bm_contacts").
+			_, err = tx.Model("bm_contacts").
 				Data(insertData[i:end]).
 				Insert()
 

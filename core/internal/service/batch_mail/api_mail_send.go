@@ -4,8 +4,6 @@ package batch_mail
 import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/domains"
-	"billionmail-core/internal/service/mail_service"
-	"billionmail-core/internal/service/maillog_stat"
 	"billionmail-core/internal/service/public"
 	"context"
 	"fmt"
@@ -13,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogf/gf/util/guid"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -29,13 +28,29 @@ const (
 	LockTimeout  = 60 * 2 // Lock timeout duration (seconds)
 )
 
+const (
+	renewAPIMailQueueLockScript   = `if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("EXPIRE", KEYS[1], ARGV[2]) else return 0 end`
+	releaseAPIMailQueueLockScript = `if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) else return 0 end`
+)
+
+var (
+	acquireAPIMailQueueLock = acquireRedisAPIMailQueueLock
+	renewAPIMailQueueLock   = renewRedisAPIMailQueueLock
+	releaseAPIMailQueueLock = releaseRedisAPIMailQueueLock
+	processAPIMailQueue     = ProcessApiMailQueue
+)
+
 type ApiMailLog struct {
-	Id        int64
-	ApiId     int
-	Recipient string
-	Addresser string
-	MessageId string
-	Attribs   map[string]string `json:"attribs"`
+	Id           int64
+	ApiId        int
+	TenantId     int64
+	Recipient    string
+	Addresser    string
+	MessageId    string
+	Engine       string
+	AttemptCount int
+	NextRetryAt  int64
+	Attribs      map[string]string `json:"attribs"`
 }
 
 // Cache data structure
@@ -98,75 +113,42 @@ func (p *WorkerPool) processMail(ctx context.Context, log ApiMailLog) {
 	// Get data from cache, if not exist, fetch from database
 	apiTemplate, ok := p.cache.ApiTemplates[log.ApiId]
 	if !ok {
-		err := g.DB().Model("api_templates").
-			Where("id", log.ApiId).
-			Ctx(ctx).
-			Scan(&apiTemplate)
-		if err != nil {
-			updateLogStatus(ctx, log.Id, StatusFailed, fmt.Sprintf("Failed to get API template: %v", err))
-			return
-		}
-		p.cache.ApiTemplates[log.ApiId] = apiTemplate
+		updateLogStatus(ctx, log, StatusFailed, fmt.Sprintf("Failed to get API template: %d", log.ApiId))
+		return
 	}
 
 	emailTemplate, ok := p.cache.EmailTemplates[apiTemplate.TemplateId]
 	if !ok {
-		err := g.DB().Model("email_templates").
-			Where("id", apiTemplate.TemplateId).
-			Ctx(ctx).
-			Scan(&emailTemplate)
-		if err != nil {
-			updateLogStatus(ctx, log.Id, StatusFailed, fmt.Sprintf("Failed to get email template: %v", err))
-			return
-		}
-		p.cache.EmailTemplates[apiTemplate.TemplateId] = emailTemplate
+		updateLogStatus(ctx, log, StatusFailed, fmt.Sprintf("Failed to get email template: %d", apiTemplate.TemplateId))
+		return
 	}
 
-	contact, ok := p.cache.Contacts[log.Recipient]
+	contact, ok := p.cache.Contacts[tenantContactKey(log.TenantId, log.Recipient)]
 	if !ok {
-		err := g.DB().Model("bm_contacts").
-			Where("email", log.Recipient).
-			Ctx(ctx).
-			Scan(&contact)
-		if err != nil {
-			updateLogStatus(ctx, log.Id, StatusFailed, fmt.Sprintf("Failed to get contact info: %v", err))
-			return
-		}
-		p.cache.Contacts[log.Recipient] = contact
+		contact = entity.Contact{Email: log.Recipient}
 	}
 
 	// Process email content and subject
 	content, subject := processMailContentAndSubject(ctx, emailTemplate.Content, apiTemplate.Subject, &apiTemplate, contact, log)
 
-	// Send email
-	err := sendApiMail(ctx, &apiTemplate, subject, content, log)
-	if err != nil {
-		updateLogStatus(ctx, log.Id, StatusFailed, fmt.Sprintf("Failed to send email: %v", err))
+	result := sendApiMailPrepared(ctx, &apiTemplate, subject, content, log)
+	if err := applyAPIMailSendResult(ctx, log, result); err != nil {
+		g.Log().Errorf(ctx, "Failed to update API mail log %d: %v", log.Id, err)
 		return
 	}
-
-	updateLogStatus(ctx, log.Id, StatusSuccess, "")
 }
 
 // Queue processing with distributed lock
 func ProcessApiMailQueueWithLock(ctx context.Context) {
-	// Attempt to acquire the distributed lock
-	err := g.Redis().SetEX(ctx, LockKey, "1", LockTimeout)
+	ownerToken, locked, err := acquireAPIMailQueueLock(ctx)
 	if err != nil {
 		g.Log().Error(ctx, "Failed to acquire lock:", err)
 		return
 	}
-	//if !locked {
-	//	g.Log().Warning(ctx, "Another instance is processing the mail queue")
-	//	return
-	//}
-
-	// // Set expiration time
-	// g.Redis().Expire(ctx, LockKey, int64(LockTimeout))
-
-	// defer func() {
-	// 	g.Redis().Del(ctx, LockKey)
-	// }()
+	if !locked {
+		g.Log().Debug(ctx, "Another instance is processing the API mail queue")
+		return
+	}
 
 	// Start the goroutine for lease renewal
 	stopRenew := make(chan struct{})
@@ -176,8 +158,11 @@ func ProcessApiMailQueueWithLock(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				// Renewal lock
-				g.Redis().Expire(ctx, LockKey, int64(LockTimeout))
+				if renewed, err := renewAPIMailQueueLock(ctx, ownerToken); err != nil {
+					g.Log().Warning(ctx, "Failed to renew API mail queue lock:", err)
+				} else if !renewed {
+					g.Log().Warning(ctx, "API mail queue lock ownership lost during renewal")
+				}
 			case <-stopRenew:
 				return
 			}
@@ -186,39 +171,60 @@ func ProcessApiMailQueueWithLock(ctx context.Context) {
 
 	defer func() {
 		close(stopRenew)
-		g.Redis().Del(ctx, LockKey)
+		if err := releaseAPIMailQueueLock(ctx, ownerToken); err != nil {
+			g.Log().Warning(ctx, "Failed to release API mail queue lock:", err)
+		}
 	}()
 
 	// Process the email queue
-	ProcessApiMailQueue(ctx)
+	processAPIMailQueue(ctx)
+}
+
+func acquireRedisAPIMailQueueLock(ctx context.Context) (string, bool, error) {
+	ownerToken := guid.S()
+	result, err := g.Redis().Do(ctx, "SET", LockKey, ownerToken, "EX", LockTimeout, "NX")
+	if err != nil {
+		return "", false, err
+	}
+	if result == nil || result.IsNil() || strings.ToUpper(result.String()) != "OK" {
+		return "", false, nil
+	}
+	return ownerToken, true, nil
+}
+
+func renewRedisAPIMailQueueLock(ctx context.Context, ownerToken string) (bool, error) {
+	result, err := g.Redis().Do(ctx, "EVAL", renewAPIMailQueueLockScript, 1, LockKey, ownerToken, LockTimeout)
+	if err != nil {
+		return false, err
+	}
+	return result != nil && result.Int() == 1, nil
+}
+
+func releaseRedisAPIMailQueueLock(ctx context.Context, ownerToken string) error {
+	_, err := g.Redis().Do(ctx, "EVAL", releaseAPIMailQueueLockScript, 1, LockKey, ownerToken)
+	return err
 }
 
 // Batch process emails
 func ProcessApiMailQueue(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, QueryTimeout*time.Second)
-	defer cancel()
-
 	// Process all pending emails in batches
 	lastMaxId := int64(0)
 	for {
 		// Get a batch of pending emails
 		var mailLogs []ApiMailLog
+		queryCtx, cancel := context.WithTimeout(ctx, QueryTimeout*time.Second)
 		err := g.DB().Model("api_mail_logs").
 			Where("status = ?", StatusPending).
+			Where("(next_retry_at = 0 OR next_retry_at <= ?)", time.Now().Unix()).
 			Where("id > ?", lastMaxId).
 			Order("id ASC").
 			Limit(BatchSize).
-			Ctx(ctx).
+			Ctx(queryCtx).
 			Scan(&mailLogs)
+		cancel()
 
 		if err != nil || len(mailLogs) == 0 {
 			break
-		}
-
-		// Group by sender
-		addresserMap := make(map[string][]ApiMailLog)
-		for _, log := range mailLogs {
-			addresserMap[log.Addresser] = append(addresserMap[log.Addresser], log)
 		}
 
 		// Preload data
@@ -228,93 +234,17 @@ func ProcessApiMailQueue(ctx context.Context) {
 			break
 		}
 
-		var wg sync.WaitGroup
-		maxSenderGoroutinesPerAddresser := 5
-		for addresser, logs := range addresserMap {
-			wg.Add(1)
-			go func(addresser string, logs []ApiMailLog) {
-				defer wg.Done()
-
-				// 1. Create N senders
-				senders := make([]*mail_service.EmailSender, maxSenderGoroutinesPerAddresser)
-				for i := 0; i < maxSenderGoroutinesPerAddresser; i++ {
-					sender, err := mail_service.NewEmailSenderWithLocal(addresser)
-					if err != nil {
-						g.Log().Errorf(ctx, "Failed to create sender for %s: %v", addresser, err)
-						for _, log := range logs {
-							updateLogStatus(ctx, log.Id, StatusFailed, "Failed to create sender: "+err.Error())
-						}
-						return
-					}
-					senders[i] = sender
-				}
-
-				// 2. Divided into N parts
-				batchSize := (len(logs) + maxSenderGoroutinesPerAddresser - 1) / maxSenderGoroutinesPerAddresser
-				var innerWg sync.WaitGroup
-				for i := 0; i < maxSenderGoroutinesPerAddresser; i++ {
-					start := i * batchSize
-					end := start + batchSize
-					if start >= len(logs) {
-						break
-					}
-					if end > len(logs) {
-						end = len(logs)
-					}
-					batch := logs[start:end]
-					sender := senders[i]
-					innerWg.Add(1)
-					go func(batch []ApiMailLog, sender *mail_service.EmailSender) {
-						defer innerWg.Done()
-						for _, log := range batch {
-							apiTemplate, ok := cache.ApiTemplates[log.ApiId]
-							if !ok {
-								err := g.DB().Model("api_templates").Where("id", log.ApiId).Ctx(ctx).Scan(&apiTemplate)
-								if err != nil {
-									updateLogStatus(ctx, log.Id, StatusFailed, "Failed to get API template: "+err.Error())
-									continue
-								}
-								cache.ApiTemplates[log.ApiId] = apiTemplate
-							}
-							emailTemplate, ok := cache.EmailTemplates[apiTemplate.TemplateId]
-							if !ok {
-								err := g.DB().Model("email_templates").Where("id", apiTemplate.TemplateId).Ctx(ctx).Scan(&emailTemplate)
-								if err != nil {
-									updateLogStatus(ctx, log.Id, StatusFailed, "Failed to get email template: "+err.Error())
-									continue
-								}
-								cache.EmailTemplates[apiTemplate.TemplateId] = emailTemplate
-							}
-							contact, ok := cache.Contacts[log.Recipient]
-							if !ok {
-								err := g.DB().Model("bm_contacts").Where("email", log.Recipient).Ctx(ctx).Scan(&contact)
-								if err != nil {
-									updateLogStatus(ctx, log.Id, StatusFailed, "Failed to get contact info: "+err.Error())
-									continue
-								}
-								cache.Contacts[log.Recipient] = contact
-							}
-							content, subject := processMailContentAndSubject(ctx, emailTemplate.Content, apiTemplate.Subject, &apiTemplate, contact, log)
-							err := sendApiMailWithSender(ctx, &apiTemplate, subject, content, log, sender)
-							if err != nil {
-								updateLogStatus(ctx, log.Id, StatusFailed, "Failed to send email: "+err.Error())
-								continue
-							}
-							updateLogStatus(ctx, log.Id, StatusSuccess, "")
-						}
-					}(batch, sender)
-				}
-				innerWg.Wait()
-
-				// 3. Disable all senders
-				for _, sender := range senders {
-					if sender != nil {
-						sender.Close()
-					}
-				}
-			}(addresser, logs)
+		pool := &WorkerPool{
+			workers: WorkerCount,
+			jobs:    make(chan ApiMailLog, len(mailLogs)),
+			cache:   cache,
 		}
-		wg.Wait()
+		pool.Start(ctx)
+		for _, log := range mailLogs {
+			pool.jobs <- log
+		}
+		close(pool.jobs)
+		pool.wg.Wait()
 
 		// lastMaxId = mailLogs[len(mailLogs)-1].Id
 		if len(mailLogs) > 0 {
@@ -327,40 +257,19 @@ func ProcessApiMailQueue(ctx context.Context) {
 	}
 }
 
-// Use the sender that has been created
-func sendApiMailWithSender(ctx context.Context, apiTemplate *entity.ApiTemplates, subject string, content string, log ApiMailLog, sender *mail_service.EmailSender) error {
-	// generate message ID
-	messageId := "<" + log.MessageId + ">"
-	baseURL := domains.GetBaseURLBySender(log.Addresser)
-	apiTemplate_id := apiTemplate.Id + 1000000000
-	mailTracker := maillog_stat.NewMailTracker(content, apiTemplate_id, messageId, log.Recipient, baseURL)
-	if apiTemplate.TrackOpen == 1 {
-		mailTracker.AppendTrackingPixel()
-	}
-	if apiTemplate.TrackClick == 1 {
-		mailTracker.TrackLinks()
-	}
-	content = mailTracker.GetHTML()
-
-	message := mail_service.NewMessage(subject, content)
-	message.SetMessageID(messageId)
-	if apiTemplate.FullName != "" {
-		message.SetRealName(apiTemplate.FullName)
-	}
-
-	if err := sender.Send(message, []string{log.Recipient}); err != nil {
-		return err
-	}
-	return nil
-}
-
 func preloadData(ctx context.Context, logs []ApiMailLog) (*CacheData, error) {
 	// Collect all necessary IDs
 	apiIds := make([]int, 0, len(logs))
 	recipientEmails := make([]string, 0, len(logs))
+	tenantIds := make([]int64, 0, len(logs))
+	tenantSeen := make(map[int64]struct{})
 	for _, log := range logs {
 		apiIds = append(apiIds, log.ApiId)
 		recipientEmails = append(recipientEmails, log.Recipient)
+		if _, ok := tenantSeen[log.TenantId]; !ok {
+			tenantSeen[log.TenantId] = struct{}{}
+			tenantIds = append(tenantIds, log.TenantId)
+		}
 	}
 	// Batch query API templates
 	var apiTemplates []entity.ApiTemplates
@@ -388,6 +297,7 @@ func preloadData(ctx context.Context, logs []ApiMailLog) (*CacheData, error) {
 	// Batch query contacts
 	var contacts []entity.Contact
 	err = g.DB().Model("bm_contacts").
+		WhereIn("tenant_id", tenantIds).
 		WhereIn("email", recipientEmails).
 		Ctx(ctx).
 		Scan(&contacts)
@@ -408,63 +318,29 @@ func preloadData(ctx context.Context, logs []ApiMailLog) (*CacheData, error) {
 		cache.EmailTemplates[t.Id] = t
 	}
 	for _, c := range contacts {
-		cache.Contacts[c.Email] = c
+		cache.Contacts[tenantContactKey(int64(c.TenantId), c.Email)] = c
 	}
 
 	return cache, nil
 }
 
-// send email
-func sendApiMail(ctx context.Context, apiTemplate *entity.ApiTemplates, subject string, content string, log ApiMailLog) error {
-
-	// create email sender
-	sender, err := mail_service.NewEmailSenderWithLocal(log.Addresser)
-	if err != nil {
-		updateLogStatus(ctx, log.Id, 3, err.Error())
-		return err
-	}
-	defer sender.Close()
-
-	// generate message ID
-	messageId := "<" + log.MessageId + ">"
-
-	// add 1 billion to prevent conflict with marketing task id
-	baseURL := domains.GetBaseURLBySender(log.Addresser)
-	apiTemplate_id := apiTemplate.Id + 1000000000
-	mailTracker := maillog_stat.NewMailTracker(content, apiTemplate_id, messageId, log.Recipient, baseURL)
-	mailTracker.TrackLinks()
-	mailTracker.AppendTrackingPixel()
-	content = mailTracker.GetHTML()
-
-	// create email message
-	message := mail_service.NewMessage(subject, content)
-	message.SetMessageID(messageId)
-
-	// set sender display name
-	if apiTemplate.FullName != "" {
-		message.SetRealName(apiTemplate.FullName)
-	}
-	// send email
-
-	err = sender.Send(message, []string{log.Recipient})
-	if err != nil {
-		errorMessage := public.LangCtx(ctx, "Failed to send email: {}", err.Error())
-		updateLogStatus(ctx, log.Id, 3, errorMessage)
-		return err
-	}
-	updateLogStatus(ctx, log.Id, 2, "")
-	return nil
+func tenantContactKey(tenantID int64, email string) string {
+	return fmt.Sprintf("%d:%s", tenantID, strings.ToLower(strings.TrimSpace(email)))
 }
 
-func updateLogStatus(ctx context.Context, id int64, status int, errorMsg string) {
-	_, err := g.DB().Model("api_mail_logs").
-		Where("id", id).
-		Update(g.Map{
-			"status":        status,
-			"error_message": errorMsg,
-			"send_time":     time.Now().Unix(),
-		})
-	if err != nil {
+func updateLogStatus(ctx context.Context, log ApiMailLog, status int, errorMsg string) {
+	result := apiMailSendResult{Status: status, ErrorMessage: errorMsg}
+	switch status {
+	case StatusSuccess:
+		result.Engine = APIDeliveryEnginePostfix
+		result.InjectionStatus = "queued"
+		result.DeliveryStatus = "pending"
+	case StatusFailed:
+		result.Engine = APIDeliveryEnginePostfix
+		result.InjectionStatus = "failed"
+		result.DeliveryStatus = "unknown"
+	}
+	if err := applyAPIMailSendResult(ctx, log, result); err != nil {
 		g.Log().Error(ctx, "Failed to update mail log status:", err)
 	}
 }

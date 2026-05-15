@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios'
 import router from '@/router'
-import { useUserStore } from '@/store'
+import { useTenantStore, useUserStore } from '@/store'
 import { apiUrlPrefix, isObject, Message } from '@/utils'
 
 interface FetchOptions {
@@ -30,6 +30,25 @@ const whitePathList = [
 	'/languages/get',
 	'/languages/set',
 ]
+
+const tenantControlPathList = ['/tenants', '/tenants/current', '/tenants/switch']
+
+const normalizeRoutePath = (url = '') => {
+	let path = url.split('?')[0] || ''
+	if (/^https?:\/\//i.test(path)) {
+		try {
+			path = new URL(path).pathname
+		} catch {
+			return path
+		}
+	}
+	if (path.startsWith('/api/')) {
+		path = path.slice(4)
+	} else if (path === '/api') {
+		path = '/'
+	}
+	return path
+}
 
 type RetryableRequestConfig = AxiosRequestConfig & {
 	_retry?: boolean
@@ -72,9 +91,14 @@ const removeController = (config: AxiosRequestConfig): void => {
 instance.interceptors.request.use(config => {
 	addController(config)
 	const { headers, url } = config
-	if (!whitePathList.includes(url || '')) {
+	const routePath = normalizeRoutePath(url || '')
+	if (!whitePathList.includes(routePath)) {
 		const userStore = useUserStore()
+		const tenantStore = useTenantStore()
 		headers.Authorization = `Bearer ${userStore.login.token}`
+		if (tenantStore.currentTenantID > 0 && !tenantControlPathList.includes(routePath)) {
+			headers['X-Tenant-ID'] = String(tenantStore.currentTenantID)
+		}
 	}
 	return config
 })

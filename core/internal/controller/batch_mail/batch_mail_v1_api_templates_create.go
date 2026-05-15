@@ -3,9 +3,12 @@ package batch_mail
 import (
 	"billionmail-core/api/batch_mail/v1"
 	"billionmail-core/internal/consts"
+	service_batch_mail "billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"net"
 	"strings"
@@ -23,11 +26,20 @@ func generateApiKey() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
+func hashAPIKey(apiKey string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(apiKey)))
+	return hex.EncodeToString(sum[:])
+}
+
 func (c *ControllerV1) ApiTemplatesCreate(ctx context.Context, req *v1.ApiTemplatesCreateReq) (res *v1.ApiTemplatesCreateRes, err error) {
 	res = &v1.ApiTemplatesCreateRes{}
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// check if template exists
-	count, err := g.DB().Model("email_templates").Where("id", req.TemplateId).Count()
+	count, err := g.DB().Model("email_templates").Where("id", req.TemplateId).Where("tenant_id", tenantID).Count()
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +66,8 @@ func (c *ControllerV1) ApiTemplatesCreate(ctx context.Context, req *v1.ApiTempla
 	// create API template
 	result, err := tx.Model("api_templates").Insert(g.Map{
 		"api_key":              apiKey,
+		"api_key_hash":         hashAPIKey(apiKey),
+		"tenant_id":            tenantID,
 		"api_name":             req.ApiName,
 		"template_id":          req.TemplateId,
 		"group_id":             req.GroupId,
@@ -63,6 +77,8 @@ func (c *ControllerV1) ApiTemplatesCreate(ctx context.Context, req *v1.ApiTempla
 		"unsubscribe":          req.Unsubscribe,
 		"track_open":           req.TrackOpen,
 		"track_click":          req.TrackClick,
+		"delivery_engine":      service_batch_mail.NormalizeAPIDeliveryEngineForAPI(req.DeliveryEngine),
+		"sending_profile_id":   req.SendingProfileId,
 		"active":               req.Active,
 		"expire_time":          0,
 		"last_key_update_time": time.Now().Unix(),
@@ -91,6 +107,7 @@ func (c *ControllerV1) ApiTemplatesCreate(ctx context.Context, req *v1.ApiTempla
 
 			_, err = tx.Model("api_ip_whitelist").Insert(g.Map{
 				"api_id":      apiId,
+				"tenant_id":   tenantID,
 				"ip":          strings.TrimSpace(ip),
 				"create_time": now,
 			})

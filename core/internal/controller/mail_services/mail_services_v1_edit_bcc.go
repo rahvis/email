@@ -3,6 +3,7 @@ package mail_services
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/mail_service"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
@@ -19,7 +20,7 @@ func (c *ControllerV1) EditBcc(ctx context.Context, req *v1.EditBccReq) (res *v1
 
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 
-		info, err := tx.Model("bm_bcc").Where("id", req.ID).One()
+		info, err := tenants.ScopeModel(ctx, tx.Model("bm_bcc"), "tenant_id").Where("id", req.ID).One()
 		if err != nil {
 			return gerror.New(public.LangCtx(ctx, "check record failed: {}", err.Error()))
 		}
@@ -50,7 +51,7 @@ func (c *ControllerV1) EditBcc(ctx context.Context, req *v1.EditBccReq) (res *v1
 			updateData["domain"] = domainValue
 		}
 
-		_, err = tx.Model("bm_bcc").
+		_, err = tenants.ScopeModel(ctx, tx.Model("bm_bcc"), "tenant_id").
 			Where("id", req.ID).
 			Update(updateData)
 		if err != nil {

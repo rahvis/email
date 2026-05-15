@@ -1,7 +1,9 @@
 package batch_mail
 
 import (
+	"billionmail-core/internal/service/outbound"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"database/sql"
 	"github.com/gogf/gf/v2/frame/g"
@@ -11,13 +13,17 @@ import (
 
 func (c *ControllerV1) ApiOverviewStats(ctx context.Context, req *v1.ApiOverviewStatsReq) (res *v1.ApiOverviewStatsRes, err error) {
 	res = &v1.ApiOverviewStatsRes{}
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// query all API templates
 	apiList := []struct {
 		Id         int
 		CreateTime int
 	}{}
-	err = g.DB().Model("api_templates").Fields("id, create_time").Scan(&apiList)
+	err = g.DB().Model("api_templates").Where("tenant_id", tenantID).Fields("id, create_time").Scan(&apiList)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
@@ -30,8 +36,10 @@ func (c *ControllerV1) ApiOverviewStats(ctx context.Context, req *v1.ApiOverview
 		query = query.LeftJoin("mailstat_message_ids mi", "aml.message_id=mi.message_id")
 		query = query.LeftJoin("mailstat_send_mails sm", "mi.postfix_message_id=sm.postfix_message_id")
 		query = query.Where("aml.api_id", api.Id)
+		query = query.Where("aml.tenant_id", tenantID)
 
 		query = query.Where("aml.status", 2)
+		query = query.Where("(aml.engine IS NULL OR aml.engine <> ?)", outbound.EngineKumoMTA)
 
 		if req.StartTime > 0 {
 			query.Where("sm.log_time_millis > ?", int64(req.StartTime)*1000-1)
@@ -51,6 +59,28 @@ func (c *ControllerV1) ApiOverviewStats(ctx context.Context, req *v1.ApiOverview
 		totalSend += sends
 		totalDelivered += delivered
 		totalBounced += bounced
+
+		kumoQuery := g.DB().Model("api_mail_logs").
+			Where("api_id", api.Id).
+			Where("tenant_id", tenantID).
+			Where("engine", "kumomta")
+		if req.StartTime > 0 {
+			kumoQuery = kumoQuery.WhereGTE("create_time", req.StartTime)
+		}
+		if req.EndTime > 0 {
+			kumoQuery = kumoQuery.WhereLTE("create_time", req.EndTime)
+		}
+		kumoQuery.Fields(
+			"coalesce(sum(case when injection_status='queued' then 1 else 0 end), 0) as queued",
+			"coalesce(sum(case when delivery_status='delivered' then 1 else 0 end), 0) as delivered",
+			"coalesce(sum(case when delivery_status='bounced' then 1 else 0 end), 0) as bounced",
+			"coalesce(sum(case when delivery_status='expired' then 1 else 0 end), 0) as expired",
+			"coalesce(sum(case when delivery_status='complained' then 1 else 0 end), 0) as complained",
+		)
+		kumoResult, _ := kumoQuery.One()
+		totalSend += kumoResult["queued"].Int()
+		totalDelivered += kumoResult["delivered"].Int()
+		totalBounced += kumoResult["bounced"].Int() + kumoResult["expired"].Int() + kumoResult["complained"].Int()
 
 		// 统计打开、点击
 		apiCampaignId := api.Id + 1000000000

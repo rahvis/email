@@ -3,6 +3,7 @@ package abnormal_recipient
 import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/maillog_stat"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"fmt"
 	"time"
@@ -19,7 +20,7 @@ func GetListWithPage(ctx context.Context, page, pageSize int, keyword string, ad
 		pageSize = 10
 	}
 
-	model := g.DB().Model("abnormal_recipient").Safe()
+	model := tenants.ScopeModel(ctx, g.DB().Model("abnormal_recipient"), "tenant_id").Safe()
 
 	if keyword != "" {
 		model = model.WhereLike("recipient", "%"+keyword+"%")
@@ -50,6 +51,7 @@ func Add(ctx context.Context, recipient string) error {
 	now := time.Now().Unix()
 	_, err := g.DB().Model("abnormal_recipient").
 		Data(g.Map{
+			"tenant_id":   tenants.CurrentTenantID(ctx),
 			"recipient":   recipient,
 			"count":       3,
 			"add_type":    1,
@@ -67,7 +69,7 @@ func Add(ctx context.Context, recipient string) error {
 
 func Delete(ctx context.Context, id int) error {
 
-	_, err := g.DB().Model("abnormal_recipient").
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("abnormal_recipient"), "tenant_id").
 		Where("id", id).
 		Delete()
 
@@ -80,7 +82,7 @@ func Delete(ctx context.Context, id int) error {
 
 func GetAbnormalRecipient(ctx context.Context, id int) (*entity.AbnormalRecipient, error) {
 	var recipient entity.AbnormalRecipient
-	err := g.DB().Model("abnormal_recipient").Where("id", id).Scan(&recipient)
+	err := tenants.ScopeModel(ctx, g.DB().Model("abnormal_recipient"), "tenant_id").Where("id", id).Scan(&recipient)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get exception recipient: %w", err)
 	}
@@ -95,7 +97,7 @@ func BatchUpsertAbnormalRecipients(ctx context.Context, recipients []string, add
 	}
 
 	var existList []entity.AbnormalRecipient
-	err := g.DB().Model("abnormal_recipient").WhereIn("recipient", recipients).Scan(&existList)
+	err := tenants.ScopeModel(ctx, g.DB().Model("abnormal_recipient"), "tenant_id").WhereIn("recipient", recipients).Scan(&existList)
 	if err != nil {
 		return fmt.Errorf("Failed to query existing abnormal recipients: %w", err)
 	}
@@ -105,7 +107,7 @@ func BatchUpsertAbnormalRecipients(ctx context.Context, recipients []string, add
 	}
 	// 1. Update the existing one count+1
 	for _, r := range existList {
-		_, err := g.DB().Model("abnormal_recipient").Where("id", r.Id).Data(g.Map{
+		_, err := tenants.ScopeModel(ctx, g.DB().Model("abnormal_recipient"), "tenant_id").Where("id", r.Id).Data(g.Map{
 			"count":       r.Count + 1,
 			"description": description,
 			"add_type":    addType,
@@ -121,6 +123,7 @@ func BatchUpsertAbnormalRecipients(ctx context.Context, recipients []string, add
 	for _, recipient := range recipients {
 		if _, ok := existMap[recipient]; !ok {
 			insertList = append(insertList, g.Map{
+				"tenant_id":   tenants.CurrentTenantID(ctx),
 				"recipient":   recipient,
 				"count":       1,
 				"add_type":    addType,
@@ -157,7 +160,7 @@ func BatchUpsertAbnormalRecipientsWithDetails(ctx context.Context, recipientDeta
 	}
 
 	var existList []entity.AbnormalRecipient
-	err := g.DB().Model("abnormal_recipient").WhereIn("recipient", recipients).Scan(&existList)
+	err := tenants.ScopeModel(ctx, g.DB().Model("abnormal_recipient"), "tenant_id").WhereIn("recipient", recipients).Scan(&existList)
 	if err != nil {
 		return fmt.Errorf("Failed to query existing abnormal recipients: %w", err)
 	}
@@ -171,7 +174,7 @@ func BatchUpsertAbnormalRecipientsWithDetails(ctx context.Context, recipientDeta
 		detail := detailsMap[r.Recipient]
 		description := fmt.Sprintf("%s - %s", baseDescription, detail.ErrorReason)
 
-		_, err := g.DB().Model("abnormal_recipient").Where("id", r.Id).Data(g.Map{
+		_, err := tenants.ScopeModel(ctx, g.DB().Model("abnormal_recipient"), "tenant_id").Where("id", r.Id).Data(g.Map{
 			"count":       r.Count + 1,
 			"description": description,
 			"add_type":    addType,
@@ -187,6 +190,7 @@ func BatchUpsertAbnormalRecipientsWithDetails(ctx context.Context, recipientDeta
 		if _, ok := existMap[detail.Email]; !ok {
 			description := fmt.Sprintf("%s - %s", baseDescription, detail.ErrorReason)
 			insertList = append(insertList, g.Map{
+				"tenant_id":   tenants.CurrentTenantID(ctx),
 				"recipient":   detail.Email,
 				"count":       1,
 				"add_type":    addType,
@@ -230,7 +234,6 @@ func AbnormalRecipientAutoStat(ctx context.Context) {
 	overview := maillog_stat.NewOverview()
 	failedList := overview.FailedListBounced(0, "", lastTime, now)
 
-
 	recipientDetailsMap := make(map[string]*RecipientDetail)
 	for _, item := range failedList {
 		recipient, recipientOk := item["recipient"].(string)
@@ -238,12 +241,10 @@ func AbnormalRecipientAutoStat(ctx context.Context) {
 			continue
 		}
 
-
 		description, descOk := item["description"].(string)
 		if !descOk {
 			description = "Unknown error"
 		}
-
 
 		if _, exists := recipientDetailsMap[recipient]; !exists {
 			recipientDetailsMap[recipient] = &RecipientDetail{

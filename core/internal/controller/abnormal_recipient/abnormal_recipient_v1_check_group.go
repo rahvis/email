@@ -6,6 +6,7 @@ import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/abnormal_recipient"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/os/gtimer"
@@ -23,13 +24,13 @@ type DNSRecord struct {
 	Type  string `json:"type"`
 	Host  string `json:"host"`
 	Value string `json:"value"`
-	Valid bool `json:"valid"`
+	Valid bool   `json:"valid"`
 }
 
 func (c *ControllerV1) CheckGroup(ctx context.Context, req *v1.CheckGroupReq) (res *v1.CheckGroupRes, err error) {
 	g.Log().Info(ctx, "CheckGroup called with req:", req)
 	res = &v1.CheckGroupRes{}
-	groupNameValue, err := g.DB().Model("bm_contact_groups").Ctx(ctx).Where("id", req.GroupId).Fields("name").Value()
+	groupNameValue, err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Ctx(ctx).Where("id", req.GroupId).Fields("name").Value()
 	if err != nil {
 		g.Log().Error(ctx, "Group name query error:", err)
 		res.SetError(gerror.New(public.LangCtx(ctx, "The group does not exist.")))
@@ -37,7 +38,7 @@ func (c *ControllerV1) CheckGroup(ctx context.Context, req *v1.CheckGroupReq) (r
 	}
 
 	var contacts []entity.Contact
-	err = g.DB().Model("bm_contacts").Where("group_id", req.GroupId).Where("active", 1).Scan(&contacts)
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Where("group_id", req.GroupId).Where("active", 1).Scan(&contacts)
 	//g.Log().Info(ctx, "bm_contacts query result, contacts:", contacts, "err:", err)
 	if err != nil || len(contacts) == 0 {
 		g.Log().Error(ctx, "No contacts found or db error:", err)
@@ -139,7 +140,7 @@ func (c *ControllerV1) CheckGroup(ctx context.Context, req *v1.CheckGroupReq) (r
 			_ = abnormal_recipient.BatchUpsertAbnormalRecipientsWithDetails(ctx, invalidEmailDetails, 3, "Manual scanning group (MX check)")
 			appendLogLine(logDir, "Adding invalid emails to blocklist with details...")
 		case 3: // Remove from the group
-			_, _ = g.DB().Model("bm_contacts").Where("group_id", req.GroupId).WhereIn("email", invalidEmails).Delete()
+			_, _ = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Where("group_id", req.GroupId).WhereIn("email", invalidEmails).Delete()
 			appendLogLine(logDir, "Removing invalid emails from group...")
 		}
 		nowStr = time.Now().Format("2006-01-02 15:04:05")

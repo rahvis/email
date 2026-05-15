@@ -7,6 +7,7 @@ import (
 )
 
 type ContactGroup struct {
+	TenantId    int    `json:"tenant_id"    dc:"Tenant ID"`
 	Id          int    `json:"id"          dc:"Group ID"`
 	Name        string `json:"name"        dc:"Group Name"`
 	Description string `json:"description" dc:"Description"`
@@ -53,11 +54,13 @@ type GroupInfo struct {
 
 type TagInfo struct {
 	Id         int    `json:"id"          dc:"Tag ID"`
+	TenantId   int    `json:"tenant_id"   dc:"Tenant ID"`
 	Name       string `json:"name"        dc:"Tag Name"`
 	CreateTime int    `json:"create_time" dc:"Create Time"`
 }
 
 type Contact struct {
+	TenantId     int               `json:"tenant_id"    dc:"Tenant ID"`
 	Id           int               `json:"id"          dc:"Contact ID"`
 	Email        string            `json:"email"       dc:"Email Address"`
 	GroupId      int               `json:"group_id"    dc:"Group ID"`

@@ -3,6 +3,7 @@ package relay
 import (
 	"billionmail-core/api/relay/v1"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -16,7 +17,7 @@ func (c *ControllerV1) GetUnboundDomains(ctx context.Context, req *v1.GetUnbound
 	res = &v1.GetUnboundDomainsRes{}
 
 	var domainEntities []DomainEntity
-	err = g.DB().Model("domain").
+	err = tenants.ScopeModel(ctx, g.DB().Model("domain"), "tenant_id").
 		Fields("domain").
 		Where("active", 1). // 只查询激活的域名
 		Scan(&domainEntities)
@@ -28,7 +29,7 @@ func (c *ControllerV1) GetUnboundDomains(ctx context.Context, req *v1.GetUnbound
 	var boundDomainEntities []struct {
 		SenderDomain string `json:"sender_domain"`
 	}
-	err = g.DB().Model("bm_relay_domain_mapping").
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_relay_domain_mapping"), "tenant_id").
 		Fields("sender_domain").
 		Scan(&boundDomainEntities)
 	if err != nil {

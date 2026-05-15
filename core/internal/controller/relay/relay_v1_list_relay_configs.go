@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/public"
 	relay_service "billionmail-core/internal/service/relay"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/os/gcache"
@@ -21,14 +22,11 @@ func (c *ControllerV1) ListRelayConfigs(ctx context.Context, req *v1.ListRelayCo
 	res = &v1.ListRelayConfigsRes{}
 	res.Data.List = make([]*v1.BmRelayWithSPF, 0)
 
-	model := g.DB().Model("bm_relay_config").Safe()
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_relay_config"), "tenant_id").Safe()
 
 	if req.Keyword != "" {
 		searchKey := "%" + req.Keyword + "%"
-		model = model.WhereLike("remark", searchKey).
-			WhereOrLike("relay_host", searchKey).
-			WhereOrLike("auth_user", searchKey).
-			WhereOrLike("smtp_name", searchKey)
+		model = model.Where("(remark LIKE ? OR relay_host LIKE ? OR auth_user LIKE ? OR smtp_name LIKE ?)", searchKey, searchKey, searchKey, searchKey)
 	}
 
 	if req.Rtype != "" {
@@ -49,7 +47,7 @@ func (c *ControllerV1) ListRelayConfigs(ctx context.Context, req *v1.ListRelayCo
 	}
 
 	for _, config := range configs {
-		password,_ := relay_service.DecryptPassword(ctx,config.AuthPassword)
+		password, _ := relay_service.DecryptPassword(ctx, config.AuthPassword)
 
 		relayWithSPF := &v1.BmRelayWithSPF{
 			BmRelay: &v1.BmRelay{
@@ -79,7 +77,7 @@ func (c *ControllerV1) ListRelayConfigs(ctx context.Context, req *v1.ListRelayCo
 		}
 
 		var mappings []*entity.BmRelayDomainMapping
-		err = g.DB().Model("bm_relay_domain_mapping").
+		err = tenants.ScopeModel(ctx, g.DB().Model("bm_relay_domain_mapping"), "tenant_id").
 			Where("relay_id", config.Id).
 			Scan(&mappings)
 

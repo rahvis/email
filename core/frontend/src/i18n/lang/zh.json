@@ -150,10 +150,14 @@
 		}
 	},
 	"overview": {
+		"queued": "已入队",
 		"delivered": "已送达",
+		"deferred": "已延迟",
 		"opened": "已打开",
 		"clicked": "已点击",
 		"bounced": "已退回",
+		"expired": "已过期",
+		"complained": "投诉",
 		"delayedQueue": "延迟队列",
 		"mailProviders": "邮件提供商",
 		"sendStats": "发送统计",
@@ -330,6 +334,13 @@
 				"ipWarmupTip": "开启后将会限制发件速率",
 				"trackClick": "跟踪点击",
 				"trackOpen": "跟踪打开",
+				"deliveryEngine": "投递引擎",
+				"enginePostfix": "本地 Postfix",
+				"engineKumo": "KumoMTA",
+				"engineTenantDefault": "租户默认",
+				"sendingProfile": "发送配置",
+				"sendingProfilePlaceholder": "配置 ID",
+				"sendingProfileTip": "租户发送配置完成前可选",
 				"unsubscribeLink": "退订链接",
 				"threads": "线程数",
 				"threadsAuto": "自动",
@@ -1533,11 +1544,18 @@
 		"columns": {
 			"apiName": "API名称",
 			"apiKey": "API密钥",
+			"deliveryEngine": "引擎",
 			"sendCount": "发送量",
 			"openRate": "打开率",
 			"clickRate": "点击率",
 			"bounceRate": "退信率",
+			"webhook": "Webhook",
 			"status": "状态"
+		},
+		"webhook": {
+			"healthy": "延迟 {seconds} 秒",
+			"waiting": "暂无事件",
+			"local": "本地"
 		},
 		"statusLabels": {
 			"active": "可用",

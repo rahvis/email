@@ -3,6 +3,7 @@ package rbac
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"fmt"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -241,6 +242,7 @@ func (s *JWTService) JWTAuthMiddleware(r *ghttp.Request) {
 		r.URL.Path == "/api/unsubscribe_new" ||
 		r.URL.Path == "/api/languages/set" ||
 		r.URL.Path == "/api/languages/get" ||
+		r.URL.Path == "/api/kumo/events" ||
 		r.URL.Path == "/api/batch_mail/api/send" ||
 		r.URL.Path == "/api/batch_mail/api/batch_send" ||
 		r.URL.Path == "/api/subscribe/submit" ||
@@ -301,6 +303,24 @@ func (s *JWTService) JWTAuthMiddleware(r *ghttp.Request) {
 		public.SetCache(cacheKey, roles, 20)
 	}
 	r.SetCtxVar("roles", roles)
+
+	requestedTenantID := int64(0)
+	if r.URL.Path != "/api/tenants" && r.URL.Path != "/api/tenants/switch" {
+		requestedTenantID = gconv.Int64(r.Header.Get("X-Tenant-ID"))
+	}
+	if requestedTenantID <= 0 && r.URL.Path != "/api/tenants" && r.URL.Path != "/api/tenants/switch" {
+		requestedTenantID = r.Session.MustGet("active_tenant_id", 0).Int64()
+	}
+	tenantContext, err := tenants.ResolveForAccount(r.GetCtx(), claims.AccountId, requestedTenantID, GetCurrentRoles(r.GetCtx()))
+	if err != nil {
+		r.Response.WriteJson(g.Map{
+			"code": 403,
+			"msg":  "Tenant access denied",
+		})
+		r.Exit()
+		return
+	}
+	tenants.SetRequestContext(r, tenantContext)
 
 	// Update Session
 	err = r.Session.Set("SignedToken", tokenString)

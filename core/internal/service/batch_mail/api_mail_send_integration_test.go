@@ -38,6 +38,72 @@ func TestApiMailSendConstants(t *testing.T) {
 	}
 }
 
+func TestProcessApiMailQueueWithLockSkipsWhenAlreadyLocked(t *testing.T) {
+	oldAcquire := acquireAPIMailQueueLock
+	oldRenew := renewAPIMailQueueLock
+	oldRelease := releaseAPIMailQueueLock
+	oldProcess := processAPIMailQueue
+	processed := false
+	released := false
+	acquireAPIMailQueueLock = func(ctx context.Context) (string, bool, error) {
+		return "", false, nil
+	}
+	renewAPIMailQueueLock = func(ctx context.Context, ownerToken string) (bool, error) {
+		return true, nil
+	}
+	releaseAPIMailQueueLock = func(ctx context.Context, ownerToken string) error {
+		released = true
+		return nil
+	}
+	processAPIMailQueue = func(ctx context.Context) {
+		processed = true
+	}
+	t.Cleanup(func() {
+		acquireAPIMailQueueLock = oldAcquire
+		renewAPIMailQueueLock = oldRenew
+		releaseAPIMailQueueLock = oldRelease
+		processAPIMailQueue = oldProcess
+	})
+
+	ProcessApiMailQueueWithLock(context.Background())
+
+	assert.False(t, processed)
+	assert.False(t, released)
+}
+
+func TestProcessApiMailQueueWithLockProcessesAndReleasesOwnedLock(t *testing.T) {
+	oldAcquire := acquireAPIMailQueueLock
+	oldRenew := renewAPIMailQueueLock
+	oldRelease := releaseAPIMailQueueLock
+	oldProcess := processAPIMailQueue
+	processed := false
+	releasedOwner := ""
+	acquireAPIMailQueueLock = func(ctx context.Context) (string, bool, error) {
+		return "owner-token", true, nil
+	}
+	renewAPIMailQueueLock = func(ctx context.Context, ownerToken string) (bool, error) {
+		return ownerToken == "owner-token", nil
+	}
+	releaseAPIMailQueueLock = func(ctx context.Context, ownerToken string) error {
+		releasedOwner = ownerToken
+		return nil
+	}
+	processAPIMailQueue = func(ctx context.Context) {
+		processed = true
+	}
+	t.Cleanup(func() {
+		acquireAPIMailQueueLock = oldAcquire
+		renewAPIMailQueueLock = oldRenew
+		releaseAPIMailQueueLock = oldRelease
+		processAPIMailQueue = oldProcess
+	})
+
+	ProcessApiMailQueueWithLock(context.Background())
+
+	assert.True(t, processed)
+	assert.Equal(t, "owner-token", releasedOwner)
+}
+
 // ---------------------------------------------------------------------------
 // CacheData: in-memory cache operations
 // ---------------------------------------------------------------------------
@@ -326,9 +392,9 @@ func TestAddresserGrouping(t *testing.T) {
 
 func TestBatchSplitting(t *testing.T) {
 	tests := []struct {
-		name       string
-		totalItems int
-		workers    int
+		name        string
+		totalItems  int
+		workers     int
 		wantBatches int
 	}{
 		{"10 items / 5 workers", 10, 5, 5},

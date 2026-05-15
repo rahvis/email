@@ -2,6 +2,7 @@ package mail_services
 
 import (
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"database/sql"
 	"github.com/gogf/gf/v2/frame/g"
@@ -14,7 +15,7 @@ import (
 func (c *ControllerV1) GetMailForwardList(ctx context.Context, req *v1.GetMailForwardListReq) (res *v1.GetMailForwardListRes, err error) {
 	res = &v1.GetMailForwardListRes{}
 
-	model := g.DB().Model("alias").Where("1=1")
+	model := tenants.ScopeModel(ctx, g.DB().Model("alias"), "tenant_id")
 
 	if req.Domain != "" {
 		model = model.Where("domain=?", req.Domain)

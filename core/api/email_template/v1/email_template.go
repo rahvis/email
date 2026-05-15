@@ -8,6 +8,7 @@ import (
 // EmailTemplate defines the email template entity
 type EmailTemplate struct {
 	Id         int    `json:"id"          description:"Template ID"     orm:"id"`
+	TenantId   int    `json:"tenant_id"   description:"Tenant ID"       orm:"tenant_id"`
 	TempName   string `json:"temp_name"   description:"Template Name"   orm:"temp_name"`
 	AddType    int    `json:"add_type"    description:"Type"           orm:"add_type"`
 	Content    string `json:"html_content"     description:"Email Content"   orm:"content"`

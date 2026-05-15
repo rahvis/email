@@ -35,11 +35,17 @@ type EmailTask struct {
 	Remark                  string    `json:"remark"          dc:"remark"`
 	Active                  int       `json:"active"          dc:"status"`
 	AddType                 int       `json:"add_type"        dc:"add type"`
+	TenantId                int       `json:"tenant_id"       dc:"tenant id"`
+	DeliveryEngine          string    `json:"delivery_engine" dc:"delivery engine"`
+	SendingProfileId        int       `json:"sending_profile_id" dc:"sending profile id"`
 	EstimatedTimeWithWarmup int64     `json:"estimated_time_with_warmup" dc:"estimated time for warmup (if applicable)"`
 	SendsCount              int       `json:"sendsCount"       description:""`
 	DeliveredCount          int       `json:"deliveredCount"   description:""`
 	BouncedCount            int       `json:"bouncedCount"     description:""`
 	DeferredCount           int       `json:"deferredCount"    description:""`
+	QueuedCount             int       `json:"queuedCount"      description:""`
+	ExpiredCount            int       `json:"expiredCount"     description:""`
+	ComplainedCount         int       `json:"complainedCount"  description:""`
 	StatsUpdateTime         int       `json:"statsUpdateTime"  description:""`
 	GroupId                 int       `json:"group_id"        dc:"Group ID"`
 	GroupName               string    `json:"group_name"      dc:"Group Name"`
@@ -104,8 +110,12 @@ type TaskInfoRes struct {
 
 type TaskSummaryStats struct {
 	Sends        int     `json:"sends"`
+	Queued       int     `json:"queued"`
 	Delivered    int     `json:"delivered"`
+	Deferred     int     `json:"deferred"`
 	Bounced      int     `json:"bounced"`
+	Expired      int     `json:"expired"`
+	Complained   int     `json:"complained"`
 	Opened       int     `json:"opened"`
 	Clicked      int     `json:"clicked"`
 	DeliveryRate float64 `json:"delivery_rate"`
@@ -137,21 +147,23 @@ type DeleteTaskRes struct {
 }
 
 type CreateTaskReq struct {
-	g.Meta        `path:"/batch_mail/task/create" method:"post" tags:"BatchMail" summary:"create task"`
-	Authorization string `json:"authorization" dc:"Authorization" in:"header"`
-	Addresser     string `json:"addresser" v:"required" dc:"addresser"`
-	Subject       string `json:"subject" v:"required" dc:"subject"`
-	FullName      string `json:"full_name" dc:"full name"`
-	TemplateId    int    `json:"template_id" v:"required" dc:"template id"`
-	GroupId       int    `json:"group_id" v:"required" dc:"group id"`
-	IsRecord      int    `json:"is_record" v:"in:0,1" dc:"is record" default:"1"`
-	Unsubscribe   int    `json:"unsubscribe" v:"in:0,1" dc:"unsubscribe" default:"1"`
-	Threads       int    `json:"threads" v:"min:0" dc:"threads" default:"5"`
-	TrackOpen     int    `json:"track_open" v:"in:0,1" dc:"track open" default:"1"`
-	TrackClick    int    `json:"track_click" v:"in:0,1" dc:"track click" default:"1"`
-	StartTime     int    `json:"start_time" v:"required" dc:"start time"`
-	Warmup        int    `json:"warmup" v:"in:0,1" dc:"warmup" default:"0"`
-	Remark        string `json:"remark" dc:"remark"`
+	g.Meta           `path:"/batch_mail/task/create" method:"post" tags:"BatchMail" summary:"create task"`
+	Authorization    string `json:"authorization" dc:"Authorization" in:"header"`
+	Addresser        string `json:"addresser" v:"required" dc:"addresser"`
+	Subject          string `json:"subject" v:"required" dc:"subject"`
+	FullName         string `json:"full_name" dc:"full name"`
+	TemplateId       int    `json:"template_id" v:"required" dc:"template id"`
+	GroupId          int    `json:"group_id" v:"required" dc:"group id"`
+	IsRecord         int    `json:"is_record" v:"in:0,1" dc:"is record" default:"1"`
+	Unsubscribe      int    `json:"unsubscribe" v:"in:0,1" dc:"unsubscribe" default:"1"`
+	Threads          int    `json:"threads" v:"min:0" dc:"threads" default:"5"`
+	TrackOpen        int    `json:"track_open" v:"in:0,1" dc:"track open" default:"1"`
+	TrackClick       int    `json:"track_click" v:"in:0,1" dc:"track click" default:"1"`
+	StartTime        int    `json:"start_time" v:"required" dc:"start time"`
+	Warmup           int    `json:"warmup" v:"in:0,1" dc:"warmup" default:"0"`
+	Remark           string `json:"remark" dc:"remark"`
+	DeliveryEngine   string `json:"delivery_engine" v:"in:tenant_default,kumomta,postfix,local,smtp,kumo" dc:"delivery engine" default:"postfix"`
+	SendingProfileId int    `json:"sending_profile_id" v:"min:0" dc:"sending profile id" default:"0"`
 
 	TagIds   []int  `json:"tag_ids" dc:"tag ids for filtering contacts"`
 	TagLogic string `json:"tag_logic" v:"in:AND,OR,NOT" dc:"tag logic (AND: must have all tags, OR: have any tag, NOT)" default:"AND"`
@@ -267,20 +279,22 @@ type TaskStatChartRes struct {
 }
 
 type UpdateTaskInfoReq struct {
-	g.Meta        `path:"/batch_mail/task/update" method:"post" tags:"BatchMail" summary:"update task info"`
-	Authorization string `json:"authorization" dc:"Authorization" in:"header"`
-	TaskId        int    `json:"task_id" v:"required" dc:"task id"`
-	Addresser     string `json:"addresser" dc:"addresser"`
-	Subject       string `json:"subject" dc:"subject"`
-	FullName      string `json:"full_name" dc:"full name"`
-	Remark        string `json:"remark" dc:"remark"`
-	TemplateId    int    `json:"template_id" dc:"template id"`
-	Unsubscribe   int    `json:"unsubscribe" v:"in:0,1" dc:"unsubscribe"`
-	Warmup        int    `json:"warmup" v:"in:0,1" dc:"warmup"`
-	Threads       int    `json:"threads" v:"min:0" dc:"threads"`
-	StartTime     int    `json:"start_time" dc:"start time"`
-	TagIds        []int  `json:"tag_ids" dc:"tag ids for filtering contacts"`
-	TagLogic      string `json:"tag_logic" v:"in:AND,OR,NOT" dc:"tag logic (AND: must have all tags, OR: have any tag, NOT)"`
+	g.Meta           `path:"/batch_mail/task/update" method:"post" tags:"BatchMail" summary:"update task info"`
+	Authorization    string `json:"authorization" dc:"Authorization" in:"header"`
+	TaskId           int    `json:"task_id" v:"required" dc:"task id"`
+	Addresser        string `json:"addresser" dc:"addresser"`
+	Subject          string `json:"subject" dc:"subject"`
+	FullName         string `json:"full_name" dc:"full name"`
+	Remark           string `json:"remark" dc:"remark"`
+	TemplateId       int    `json:"template_id" dc:"template id"`
+	Unsubscribe      int    `json:"unsubscribe" v:"in:0,1" dc:"unsubscribe"`
+	Warmup           int    `json:"warmup" v:"in:0,1" dc:"warmup"`
+	Threads          int    `json:"threads" v:"min:0" dc:"threads"`
+	StartTime        int    `json:"start_time" dc:"start time"`
+	DeliveryEngine   string `json:"delivery_engine" v:"in:tenant_default,kumomta,postfix,local,smtp,kumo" dc:"delivery engine"`
+	SendingProfileId int    `json:"sending_profile_id" v:"min:0" dc:"sending profile id"`
+	TagIds           []int  `json:"tag_ids" dc:"tag ids for filtering contacts"`
+	TagLogic         string `json:"tag_logic" v:"in:AND,OR,NOT" dc:"tag logic (AND: must have all tags, OR: have any tag, NOT)"`
 }
 type UpdateTaskInfoRes struct {
 	api_v1.StandardRes

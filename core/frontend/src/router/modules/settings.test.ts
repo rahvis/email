@@ -25,12 +25,12 @@ describe('settings route', () => {
     expect(route.name).toBe('SettingsLayout')
   })
 
-  it('first child has sub-routes for common, service, bcc, forward, ai-model, send-queue', () => {
+  it('first child has sub-routes for common, service, bcc, forward, ai-model, send-queue, kumo', () => {
     const settings = route.children![0]
     expect(settings.name).toBe('Settings')
     expect(settings.redirect).toBe('/settings/common')
     const subRoutes = settings.children!
-    expect(subRoutes).toHaveLength(6)
+    expect(subRoutes).toHaveLength(7)
 
     expect(subRoutes[0].path).toBe('common')
     expect(subRoutes[0].name).toBe('SettingsCommon')
@@ -49,6 +49,9 @@ describe('settings route', () => {
 
     expect(subRoutes[5].path).toBe('send-queue')
     expect(subRoutes[5].name).toBe('SendQueue')
+
+    expect(subRoutes[6].path).toBe('kumo')
+    expect(subRoutes[6].name).toBe('SettingsKumo')
   })
 
   it('has rspamd route marked hidden', () => {

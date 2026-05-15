@@ -4,6 +4,7 @@ import (
 	"billionmail-core/api/batch_mail/v1"
 	"billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -70,6 +71,9 @@ func (c *ControllerV1) GetTaskMailLogs(ctx context.Context, req *v1.GetTaskMailL
 	// Ensure valid joins
 	baseQuery.Where("mi.postfix_message_id IS NOT NULL")
 	baseQuery.Where("ri.task_id IS NOT NULL")
+	if tenantID := tenants.CurrentTenantID(ctx); tenantID > 0 {
+		baseQuery.Where("ri.tenant_id", tenantID)
+	}
 
 	// Add time range filters
 	if startTime > 0 {

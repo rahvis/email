@@ -3,6 +3,7 @@ package video_outreach
 import (
 	v1 "billionmail-core/api/video_outreach/v1"
 	"billionmail-core/internal/model/entity"
+	"billionmail-core/internal/service/tenants"
 	vo "billionmail-core/internal/service/video_outreach"
 	"context"
 
@@ -14,7 +15,7 @@ func (c *ControllerV1) GetVideoStatus(ctx context.Context, req *v1.GetVideoStatu
 	res = &v1.GetVideoStatusRes{}
 
 	var contact entity.Contact
-	err = g.DB().Model("bm_contacts").
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").
 		Where("email", req.ContactEmail).
 		Where("group_id", req.GroupID).
 		OrderDesc("create_time").

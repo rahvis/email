@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/dockerapi"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -22,6 +23,7 @@ import (
 )
 
 func Add(ctx context.Context, mailbox *v1.Mailbox) (err error) {
+	mailbox.TenantId = tenants.CurrentTenantID(ctx)
 	// Encode password
 	mailbox.PasswordEncode = PasswdEncode(ctx, mailbox.Password)
 
@@ -58,6 +60,7 @@ func Add(ctx context.Context, mailbox *v1.Mailbox) (err error) {
 }
 
 func Update(ctx context.Context, mailbox *v1.Mailbox) (err error) {
+	mailbox.TenantId = tenants.CurrentTenantID(ctx)
 	mailbox.UpdateTime = time.Now().Unix()
 	if mailbox.Password != "" {
 		mailbox.PasswordEncode = PasswdEncode(ctx, mailbox.Password)
@@ -79,9 +82,9 @@ func Update(ctx context.Context, mailbox *v1.Mailbox) (err error) {
 	delete(m, "used_quota")
 
 	var mb v1.Mailbox
-	err = g.DB().Model("mailbox").Where("username", mailbox.Username).Scan(&mb)
+	err = tenants.ScopeModel(ctx, g.DB().Model("mailbox").Where("username", mailbox.Username), "tenant_id").Scan(&mb)
 
-	_, err = g.DB().Model("mailbox").
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("mailbox"), "tenant_id").
 		Ctx(ctx).
 		Where("username", mailbox.Username).
 		Update(m)
@@ -101,7 +104,7 @@ func Update(ctx context.Context, mailbox *v1.Mailbox) (err error) {
 }
 
 func Delete(ctx context.Context, email string) error {
-	_, err := g.DB().Model("mailbox").
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("mailbox"), "tenant_id").
 		Ctx(ctx).
 		Where("username", email).
 		Delete()
@@ -113,7 +116,7 @@ func DeleteBatch(ctx context.Context, emails []string) (int64, error) {
 		return 0, nil
 	}
 
-	result, err := g.DB().Model("mailbox").
+	result, err := tenants.ScopeModel(ctx, g.DB().Model("mailbox"), "tenant_id").
 		Ctx(ctx).
 		WhereIn("username", emails).
 		Delete()
@@ -131,7 +134,7 @@ func DeleteBatch(ctx context.Context, emails []string) (int64, error) {
 }
 
 func Get(ctx context.Context, domain, keyword string, page, pageSize int) ([]v1.Mailbox, int, error) {
-	m := g.DB().Model("mailbox").Order("create_time", "desc")
+	m := tenants.ScopeModel(ctx, g.DB().Model("mailbox"), "tenant_id").Order("create_time", "desc")
 
 	if domain != "" {
 		m.Where("domain", domain)
@@ -154,7 +157,7 @@ func Get(ctx context.Context, domain, keyword string, page, pageSize int) ([]v1.
 
 func All(ctx context.Context, domain string) ([]v1.Mailbox, error) {
 	var mailboxes []v1.Mailbox
-	query := g.DB().Model("mailbox")
+	query := tenants.ScopeModel(ctx, g.DB().Model("mailbox"), "tenant_id")
 
 	if domain != "" {
 		query.Where("domain", domain)
@@ -170,7 +173,7 @@ func All(ctx context.Context, domain string) ([]v1.Mailbox, error) {
 func AllEmail(ctx context.Context, domain string) ([]string, error) {
 	var emails []string
 
-	query := g.DB().Model("mailbox")
+	query := tenants.ScopeModel(ctx, g.DB().Model("mailbox"), "tenant_id")
 
 	if domain != "" {
 		query.Where("domain", domain)

@@ -2,6 +2,7 @@ package batch_mail
 
 import (
 	"billionmail-core/internal/service/batch_mail"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"time"
 
@@ -60,7 +61,7 @@ func (c *ControllerV1) GetTaskSendCount(ctx context.Context, req *v1.GetTaskSend
 
 	// SQL query, group by minute
 
-	err = g.DB().Model("recipient_info").
+	err = tenants.ScopeModel(ctx, g.DB().Model("recipient_info"), "tenant_id").
 		Where("task_id", req.TaskId).
 		Where("is_sent", 1).
 		Where("sent_time BETWEEN ? AND ?", startTime, endTime).

@@ -4,6 +4,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -63,6 +64,10 @@ func (c *ControllerV1) EditContacts(ctx context.Context, req *v1.EditContactsReq
 	}
 
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		tenantID, tenantErr := tenants.RequireTenantID(ctx)
+		if tenantErr != nil {
+			return tenantErr
+		}
 
 		if len(req.GroupIds) > 0 {
 			for _, groupId := range req.GroupIds {
@@ -76,7 +81,7 @@ func (c *ControllerV1) EditContacts(ctx context.Context, req *v1.EditContactsReq
 			Attribs map[string]string `json:"attribs"`
 			Status  int               `json:"status"`
 		}
-		err := g.DB().Model("bm_contacts").
+		err := tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 			Where("email", req.Emails).
 			Order("id DESC").
 			Limit(1).
@@ -97,7 +102,7 @@ func (c *ControllerV1) EditContacts(ctx context.Context, req *v1.EditContactsReq
 		// 3. If group relations need to be updatedrelations need to be updated
 		if len(req.GroupIds) > 0 {
 			// Delete old contact recordsd contact records
-			_, err := g.DB().Model("bm_contacts").
+			_, err := tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 				Where("email", req.Emails).
 				Delete()
 			if err != nil {
@@ -110,6 +115,7 @@ func (c *ControllerV1) EditContacts(ctx context.Context, req *v1.EditContactsReq
 
 			for _, groupId := range req.GroupIds {
 				data = append(data, g.Map{
+					"tenant_id":   tenantID,
 					"email":       req.Emails,
 					"group_id":    groupId,
 					"active":      req.Active,
@@ -120,7 +126,7 @@ func (c *ControllerV1) EditContacts(ctx context.Context, req *v1.EditContactsReq
 			}
 
 			if len(data) > 0 {
-				_, err := g.DB().Model("bm_contacts").
+				_, err := tx.Model("bm_contacts").
 					Data(data).
 					Insert()
 				if err != nil {

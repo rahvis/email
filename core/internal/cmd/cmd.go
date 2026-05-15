@@ -11,6 +11,7 @@ import (
 	"billionmail-core/internal/controller/domains"
 	"billionmail-core/internal/controller/email_template"
 	"billionmail-core/internal/controller/files"
+	"billionmail-core/internal/controller/kumo"
 	"billionmail-core/internal/controller/languages"
 	"billionmail-core/internal/controller/mail_boxes"
 	"billionmail-core/internal/controller/mail_services"
@@ -22,6 +23,7 @@ import (
 	"billionmail-core/internal/controller/settings"
 	"billionmail-core/internal/controller/subscribe_list"
 	"billionmail-core/internal/controller/tags"
+	"billionmail-core/internal/controller/tenants"
 	video_outreach_ctrl "billionmail-core/internal/controller/video_outreach"
 	"billionmail-core/internal/service/database_initialization"
 	docker "billionmail-core/internal/service/dockerapi"
@@ -206,6 +208,7 @@ var (
 				"/api/subscribe/submit":          {},
 				"/api/languages/get":             {},
 				"/api/languages/set":             {},
+				"/api/kumo/events":               {},
 				"/already_subscribed.html":       {},
 				"/subscribe_confirm.html":        {},
 				"/subscribe_form.html":           {},
@@ -318,6 +321,8 @@ var (
 					files.NewV1(),
 					abnormal_recipient.NewV1(),
 					languages.NewV1(),
+					kumo.NewV1(),
+					tenants.NewV1(),
 					mail_services.NewV1(),
 					relay.NewV1(),
 					settings.NewV1(),

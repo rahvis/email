@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
 	"billionmail-core/internal/service/relay"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -14,7 +15,7 @@ import (
 func (c *ControllerV1) DeleteRelayConfig(ctx context.Context, req *v1.DeleteRelayConfigReq) (res *v1.DeleteRelayConfigRes, err error) {
 	res = &v1.DeleteRelayConfigRes{}
 
-	relayInfo, err := g.DB().Model("bm_relay_config").Where("id", req.ID).One()
+	relayInfo, err := tenants.ScopeModel(ctx, g.DB().Model("bm_relay_config"), "tenant_id").Where("id", req.ID).One()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check relay configuration: {}", err.Error())))
 		return res, nil
@@ -27,7 +28,7 @@ func (c *ControllerV1) DeleteRelayConfig(ctx context.Context, req *v1.DeleteRela
 	var domainMappings []struct {
 		SenderDomain string `json:"sender_domain"`
 	}
-	err = g.DB().Model("bm_relay_domain_mapping").
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_relay_domain_mapping"), "tenant_id").
 		Where("relay_id", req.ID).
 		Fields("sender_domain").
 		Scan(&domainMappings)
@@ -47,13 +48,13 @@ func (c *ControllerV1) DeleteRelayConfig(ctx context.Context, req *v1.DeleteRela
 		}
 	}()
 
-	_, err = tx.Model("bm_relay_config").Where("id", req.ID).Delete()
+	_, err = tenants.ScopeModel(ctx, tx.Model("bm_relay_config"), "tenant_id").Where("id", req.ID).Delete()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to delete relay configuration: {}", err.Error())))
 		return res, nil
 	}
 
-	_, err = tx.Model("bm_relay_domain_mapping").Where("relay_id", req.ID).Delete()
+	_, err = tenants.ScopeModel(ctx, tx.Model("bm_relay_domain_mapping"), "tenant_id").Where("relay_id", req.ID).Delete()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to delete domain mappings: {}", err.Error())))
 		return res, nil

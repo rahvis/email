@@ -3,6 +3,7 @@ export interface Api {
 	api_key: string
 	api_name: string
 	template_id: number
+	tenant_id: number
 	subject: string
 	addresser: string
 	full_name: string
@@ -23,6 +24,17 @@ export interface Api {
 	bounce_rate: number
 	group_id: number
 	ip_whitelist: string[]
+	delivery_engine: 'tenant_default' | 'kumomta' | 'postfix' | 'local' | 'smtp' | 'kumo'
+	sending_profile_id: number
+	queued_count: number
+	delivered_count: number
+	deferred_count: number
+	bounced_count: number
+	expired_count: number
+	complained_count: number
+	webhook_last_seen_at: number
+	webhook_lag_seconds: number
+	webhook_healthy: boolean
 }
 
 export interface ApiParams {

@@ -2,6 +2,7 @@ package contact
 
 import (
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -38,7 +39,7 @@ func (c *ControllerV1) GetContactsTrend(ctx context.Context, req *v1.GetContacts
 	g.Log().Infof(ctx, "GetContactsTrend: TimeInterval=%d, Granularity=%s, StartTime=%s, EndTime=%s, Active=%d, LastActiveStatus=%d",
 		req.TimeInterval, timeGranularity, startTime.Format("2006-01-02 15:04:05"), endTime.Format("2006-01-02 15:04:05"), req.Active, req.LastActiveStatus)
 
-	baseModel := g.DB().Model("bm_contacts c").Safe()
+	baseModel := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts c"), "c.tenant_id").Safe()
 
 	if req.GroupId > 0 {
 		baseModel = baseModel.Where("c.group_id", req.GroupId)
@@ -61,7 +62,7 @@ func (c *ControllerV1) GetContactsTrend(ctx context.Context, req *v1.GetContacts
 		}
 
 		if len(validTagIds) > 0 {
-			baseModel = baseModel.InnerJoin("bm_contact_tags ct", "c.id = ct.contact_id").
+			baseModel = baseModel.InnerJoin("bm_contact_tags ct", "c.id = ct.contact_id AND ct.tenant_id = c.tenant_id").
 				WhereIn("ct.tag_id", validTagIds)
 		}
 	}
@@ -273,7 +274,7 @@ func (c *ControllerV1) fillMonthlyTrendData(data []struct {
 		}
 
 		result = append(result, &v1.MonthlyCount{
-			Date: monthStr,
+			Date:  monthStr,
 			Count: count,
 		})
 	}

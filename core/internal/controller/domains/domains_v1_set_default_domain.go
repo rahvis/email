@@ -3,6 +3,7 @@ package domains
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -17,7 +18,7 @@ func (c *ControllerV1) SetDefaultDomain(ctx context.Context, req *v1.SetDefaultD
 
 	// 1. Validate if the domain exists and is active
 	var count int
-	count, err = g.DB().Model("domain").
+	count, err = tenants.ScopeModel(ctx, g.DB().Model("domain"), "tenant_id").
 		Where("domain", req.Domain).
 		Where("active", 1).
 		Count()

@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/mail_service"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"time"
@@ -15,7 +16,13 @@ import (
 func (c *ControllerV1) AddBcc(ctx context.Context, req *v1.AddBccReq) (res *v1.AddBccRes, err error) {
 	res = &v1.AddBccRes{}
 
-	count, err := g.DB().Model("bm_bcc").
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		res.SetError(err)
+		return res, nil
+	}
+
+	count, err := tenants.ScopeModel(ctx, g.DB().Model("bm_bcc"), "tenant_id").
 		Where("type", req.Type).
 		Where("address", req.Address).
 		Where("goto", req.Goto).
@@ -35,6 +42,7 @@ func (c *ControllerV1) AddBcc(ctx context.Context, req *v1.AddBccReq) (res *v1.A
 
 	now := time.Now().Unix()
 	insertdata := g.Map{
+		"tenant_id":   tenantID,
 		"type":        req.Type,
 		"address":     req.Address,
 		"goto":        req.Goto,

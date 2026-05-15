@@ -3,6 +3,7 @@ package video_outreach
 import (
 	v1 "billionmail-core/api/video_outreach/v1"
 	"billionmail-core/internal/model/entity"
+	"billionmail-core/internal/service/tenants"
 	vo "billionmail-core/internal/service/video_outreach"
 	"context"
 
@@ -12,7 +13,7 @@ import (
 func (c *ControllerV1) ListVideoOutreach(ctx context.Context, req *v1.ListVideoOutreachReq) (res *v1.ListVideoOutreachRes, err error) {
 	res = &v1.ListVideoOutreachRes{}
 
-	q := g.DB().Model("bm_contacts")
+	q := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id")
 
 	if req.GroupID > 0 {
 		q = q.Where("group_id", req.GroupID)

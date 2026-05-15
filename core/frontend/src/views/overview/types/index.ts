@@ -10,6 +10,10 @@ export type MailOverview = {
 export type MailDashboard = {
 	bounce_rate: number
 	bounced: number
+	queued?: number
+	deferred?: number
+	expired?: number
+	complained?: number
 	click_rate: number
 	clicked: number
 	delivered: number

@@ -7,6 +7,7 @@ import (
 	"billionmail-core/internal/service/collect"
 	"billionmail-core/internal/service/domains"
 	"billionmail-core/internal/service/fail2ban"
+	"billionmail-core/internal/service/kumo"
 	"billionmail-core/internal/service/log_maintenance"
 	"billionmail-core/internal/service/mail_boxes"
 	"billionmail-core/internal/service/mail_service"
@@ -78,6 +79,15 @@ func Start(ctx context.Context) (err error) {
 	})
 
 	g.Log().Debug(ctx, "Start timers complete")
+
+	// KumoMTA health and metrics polling. Failures are cached for the UI only
+	// and must not block Postfix/local sending paths.
+	gtimer.AddOnce(2*time.Second, func() {
+		kumo.PollHealthAndMetrics(ctx)
+	})
+	gtimer.Add(30*time.Second, func() {
+		kumo.PollHealthAndMetrics(ctx)
+	})
 
 	// Collect mail-sent total and mail-relay total
 	gtimer.AddOnce(5*time.Second, func() {

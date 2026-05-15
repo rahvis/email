@@ -6,6 +6,7 @@ import (
 	"billionmail-core/internal/service/domains"
 	"billionmail-core/internal/service/public"
 	"billionmail-core/internal/service/relay"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"strings"
 	"time"
@@ -16,8 +17,13 @@ import (
 
 func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRelayConfigReq) (res *v1.UpdateRelayConfigRes, err error) {
 	res = &v1.UpdateRelayConfigRes{}
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		res.SetError(err)
+		return res, nil
+	}
 
-	relayInfo, err := g.DB().Model("bm_relay_config").Where("id", req.ID).One()
+	relayInfo, err := tenants.ScopeModel(ctx, g.DB().Model("bm_relay_config"), "tenant_id").Where("id", req.ID).One()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check relay configuration: {}", err.Error())))
 		return res, nil
@@ -117,7 +123,7 @@ func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRela
 	}()
 
 	if len(updateData) > 1 {
-		_, err = tx.Model("bm_relay_config").Where("id", req.ID).Data(updateData).Update()
+		_, err = tenants.ScopeModel(ctx, tx.Model("bm_relay_config"), "tenant_id").Where("id", req.ID).Data(updateData).Update()
 		if err != nil {
 			res.SetError(gerror.New(public.LangCtx(ctx, "Failed to update relay configuration: {}", err.Error())))
 			return res, nil
@@ -127,7 +133,7 @@ func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRela
 	// Only update sender domain mappings when explicitly provided.
 	if len(req.SenderDomains) > 0 {
 
-		_, err = tx.Model("bm_relay_domain_mapping").
+		_, err = tenants.ScopeModel(ctx, tx.Model("bm_relay_domain_mapping"), "tenant_id").
 			Where("relay_id", req.ID).
 			Delete()
 		if err != nil {
@@ -141,7 +147,7 @@ func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRela
 			domains_ = append(domains_, domain)
 		}
 
-		existingDomainsCount, err := tx.Model("bm_relay_domain_mapping").
+		existingDomainsCount, err := tenants.ScopeModel(ctx, tx.Model("bm_relay_domain_mapping"), "tenant_id").
 			WhereIn("sender_domain", domains_).
 			WhereNot("relay_id", req.ID).
 			Count()
@@ -155,7 +161,7 @@ func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRela
 		}
 
 		var currentDomains []string
-		err = tx.Model("bm_relay_domain_mapping").
+		err = tenants.ScopeModel(ctx, tx.Model("bm_relay_domain_mapping"), "tenant_id").
 			Where("relay_id", req.ID).
 			Fields("sender_domain").
 			Scan(&currentDomains)
@@ -176,7 +182,7 @@ func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRela
 
 		for _, oldDomain := range currentDomains {
 			if !newDomainsMap[oldDomain] {
-				_, err = tx.Model("bm_relay_domain_mapping").
+				_, err = tenants.ScopeModel(ctx, tx.Model("bm_relay_domain_mapping"), "tenant_id").
 					Where("relay_id", req.ID).
 					Where("sender_domain", oldDomain).
 					Delete()
@@ -191,6 +197,7 @@ func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRela
 			if !currentDomainsMap[newDomain] {
 				_, err = tx.Model("bm_relay_domain_mapping").
 					Data(g.Map{
+						"tenant_id":     tenantID,
 						"relay_id":      req.ID,
 						"sender_domain": newDomain,
 						"create_time":   updateTime,
@@ -215,7 +222,7 @@ func (c *ControllerV1) UpdateRelayConfig(ctx context.Context, req *v1.UpdateRela
 	}
 
 	var firstDomain string
-	domainResult, err := g.DB().Model("bm_relay_domain_mapping").
+	domainResult, err := tenants.ScopeModel(ctx, g.DB().Model("bm_relay_domain_mapping"), "tenant_id").
 		Where("relay_id", req.ID).
 		Order("create_time ASC").
 		Limit(1).

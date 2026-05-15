@@ -5,10 +5,11 @@ import useUserStore from './modules/user'
 import useGlobalStore from './modules/global'
 import useThemeStore from './modules/theme'
 import useInstanceStore from './modules/instance'
+import useTenantStore from './modules/tenant'
 
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)
 
-export { useMenuStore, useUserStore, useGlobalStore, useThemeStore, useInstanceStore }
+export { useMenuStore, useUserStore, useGlobalStore, useThemeStore, useInstanceStore, useTenantStore }
 
 export default pinia

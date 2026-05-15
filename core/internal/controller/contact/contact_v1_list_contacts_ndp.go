@@ -2,6 +2,7 @@ package contact
 
 import (
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"database/sql"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -30,7 +31,7 @@ func (c *ControllerV1) ListContactsNDP(ctx context.Context, req *v1.ListContacts
 		req.SortOrder = "desc"
 	}
 
-	model := g.DB().Model("bm_contacts c").Safe()
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts c"), "c.tenant_id").Safe()
 
 	if req.GroupId > 0 {
 		model = model.Where("c.group_id", req.GroupId)
@@ -56,7 +57,7 @@ func (c *ControllerV1) ListContactsNDP(ctx context.Context, req *v1.ListContacts
 
 		if len(validTagIds) > 0 {
 
-			model = model.InnerJoin("bm_contact_tags ct", "c.id = ct.contact_id").
+			model = model.InnerJoin("bm_contact_tags ct", "c.id = ct.contact_id AND ct.tenant_id = c.tenant_id").
 				WhereIn("ct.tag_id", validTagIds)
 		}
 	}
@@ -120,7 +121,7 @@ func (c *ControllerV1) ListContactsNDP(ctx context.Context, req *v1.ListContacts
 
 	var contacts []*v1.Contact
 	queryModel := model.Fields("c.*, cg.name as group_name").
-		LeftJoin("bm_contact_groups cg", "c.group_id = cg.id")
+		LeftJoin("bm_contact_groups cg", "c.group_id = cg.id AND cg.tenant_id = c.tenant_id")
 
 	if req.Tags != "" && req.Tags != "-1" {
 		queryModel = queryModel.Group("c.id, cg.name")
@@ -169,8 +170,8 @@ func (c *ControllerV1) attachContactTags(ctx context.Context, contacts []*v1.Con
 		CreateTime int    `json:"create_time"`
 	}
 
-	err := g.DB().Model("bm_contact_tags ct").
-		LeftJoin("bm_tags t", "ct.tag_id = t.id").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_tags ct"), "ct.tenant_id").
+		LeftJoin("bm_tags t", "ct.tag_id = t.id AND t.tenant_id = ct.tenant_id").
 		Fields("ct.contact_id, t.id as tag_id, t.name as tag_name, ct.create_time").
 		WhereIn("ct.contact_id", contactIds).
 		Order("ct.create_time DESC").

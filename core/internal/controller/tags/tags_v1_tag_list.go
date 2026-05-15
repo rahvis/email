@@ -5,6 +5,7 @@ import (
 	"billionmail-core/internal/model/entity"
 	"billionmail-core/internal/service/contact"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 )
@@ -12,7 +13,7 @@ import (
 func (c *ControllerV1) TagList(ctx context.Context, req *v1.TagListReq) (res *v1.TagListRes, err error) {
 	res = &v1.TagListRes{}
 
-	model := g.DB().Model("bm_tags")
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id")
 
 	if req.Keyword != "" {
 		model = model.WhereLike("name", "%"+req.Keyword+"%")
@@ -39,7 +40,7 @@ func (c *ControllerV1) TagList(ctx context.Context, req *v1.TagListReq) (res *v1
 
 		// check if group exists
 		GroupInfo, err := contact.GetGroup(ctx, tag.GroupId)
- 
+
 		if err != nil || GroupInfo == nil {
 			tag.GroupName = "Unknown"
 		} else {

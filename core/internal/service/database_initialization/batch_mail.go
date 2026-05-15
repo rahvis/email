@@ -86,10 +86,16 @@ func init() {
                 update_time INTEGER NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
                 active SMALLINT NOT NULL DEFAULT 0,
     			add_type SMALLINT NOT NULL DEFAULT 0,
+				tenant_id INTEGER NOT NULL DEFAULT 0,
+				delivery_engine VARCHAR(32) NOT NULL DEFAULT 'postfix',
+				sending_profile_id INTEGER NOT NULL DEFAULT 0,
 				sends_count INTEGER NOT NULL DEFAULT 0,
 				delivered_count INTEGER NOT NULL DEFAULT 0,
 				bounced_count INTEGER NOT NULL DEFAULT 0,
 				deferred_count INTEGER NOT NULL DEFAULT 0,
+				queued_count INTEGER NOT NULL DEFAULT 0,
+				expired_count INTEGER NOT NULL DEFAULT 0,
+				complained_count INTEGER NOT NULL DEFAULT 0,
 				group_id INTEGER NOT NULL DEFAULT 0,   
 				stats_update_time INTEGER NOT NULL DEFAULT 0,
 				tag_ids TEXT DEFAULT '', -- JSON array of tag ids for filtering contacts
@@ -131,14 +137,18 @@ func init() {
 			`CREATE TABLE IF NOT EXISTS api_templates (
                 id SERIAL PRIMARY KEY,
                 api_key VARCHAR(64) NOT NULL,
+                api_key_hash TEXT NOT NULL DEFAULT '',
                 api_name VARCHAR(255) NOT NULL,
                 template_id INTEGER NOT NULL,
+                tenant_id INTEGER NOT NULL DEFAULT 0,
                 subject TEXT NOT NULL,
                 addresser VARCHAR(320) NOT NULL,
                 full_name VARCHAR(255),
                 unsubscribe SMALLINT NOT NULL DEFAULT 0,
                 track_open SMALLINT NOT NULL DEFAULT 1,
                 track_click SMALLINT NOT NULL DEFAULT 1,
+                delivery_engine VARCHAR(32) NOT NULL DEFAULT 'postfix',
+                sending_profile_id INTEGER NOT NULL DEFAULT 0,
                 active SMALLINT NOT NULL DEFAULT 1,
                 create_time INTEGER NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
                 update_time INTEGER NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
@@ -150,10 +160,20 @@ func init() {
 			`CREATE TABLE IF NOT EXISTS api_mail_logs (
                 id SERIAL PRIMARY KEY,
                 api_id INTEGER NOT NULL,
+                tenant_id INTEGER NOT NULL DEFAULT 0,
                 recipient VARCHAR(320) NOT NULL,
                 message_id TEXT NOT NULL,
                 addresser VARCHAR(320) NOT NULL,
                 status SMALLINT NOT NULL DEFAULT 0, -- 0:to send, 2:send, 3:send failed
+                engine VARCHAR(32) NOT NULL DEFAULT 'postfix',
+                injection_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+                delivery_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+                kumo_queue TEXT DEFAULT '',
+                provider_queue_id TEXT DEFAULT '',
+                last_delivery_event_at INTEGER NOT NULL DEFAULT 0,
+                last_delivery_response TEXT DEFAULT '',
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                next_retry_at INTEGER NOT NULL DEFAULT 0,
                 error_message TEXT, 
 				attribs JSONB DEFAULT '{}'::jsonb,
                 send_time INTEGER NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
@@ -164,6 +184,7 @@ func init() {
 			`CREATE TABLE IF NOT EXISTS api_ip_whitelist (
 				id SERIAL PRIMARY KEY,
 				api_id INTEGER NOT NULL,
+				tenant_id INTEGER NOT NULL DEFAULT 0,
 				ip VARCHAR(45) NOT NULL,
 				create_time INTEGER NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
 				FOREIGN KEY (api_id) REFERENCES api_templates(id) ON DELETE CASCADE
@@ -194,6 +215,10 @@ func init() {
 			`CREATE INDEX IF NOT EXISTS idx_abnormal_recipient_count ON abnormal_recipient (recipient,count)`,
 			`CREATE INDEX IF NOT EXISTS idx_group_email ON bm_contacts(group_id, email)`,
 			`CREATE INDEX IF NOT EXISTS idx_api_mail_logs_api_id ON api_mail_logs (api_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_api_templates_api_key_hash ON api_templates (api_key_hash)`,
+			`CREATE INDEX IF NOT EXISTS idx_api_templates_tenant_id ON api_templates (tenant_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_api_mail_logs_tenant_api ON api_mail_logs (tenant_id, api_id)`,
+			`CREATE INDEX IF NOT EXISTS idx_api_ip_whitelist_tenant_api ON api_ip_whitelist (tenant_id, api_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_api_mail_logs_recipient ON api_mail_logs (recipient)`,
 			`CREATE INDEX IF NOT EXISTS idx_api_mail_logs_message_id ON api_mail_logs (message_id)`,
 			`CREATE INDEX IF NOT EXISTS idx_recipient_info_task_id ON recipient_info(task_id)`,
@@ -220,9 +245,30 @@ func init() {
 
 		//  api_mail_logs
 		_ = AddColumnIfNotExists("api_mail_logs", "status", "SMALLINT", "0", true)
+		_ = AddColumnIfNotExists("api_mail_logs", "tenant_id", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("api_mail_logs", "error_message", "TEXT", "''", false)
 		_ = AddColumnIfNotExists("api_mail_logs", "create_time", "INTEGER", "EXTRACT(EPOCH FROM NOW())", true)
 		_ = AddColumnIfNotExists("api_mail_logs", "attribs", "JSONB", "'{}'::jsonb", false)
+		_ = AddColumnIfNotExists("api_mail_logs", "engine", "VARCHAR(32)", "'postfix'", true)
+		_ = AddColumnIfNotExists("api_mail_logs", "injection_status", "VARCHAR(32)", "'pending'", true)
+		_ = AddColumnIfNotExists("api_mail_logs", "delivery_status", "VARCHAR(32)", "'pending'", true)
+		_ = AddColumnIfNotExists("api_mail_logs", "kumo_queue", "TEXT", "''", false)
+		_ = AddColumnIfNotExists("api_mail_logs", "provider_queue_id", "TEXT", "''", false)
+		_ = AddColumnIfNotExists("api_mail_logs", "last_delivery_event_at", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("api_mail_logs", "last_delivery_response", "TEXT", "''", false)
+		_ = AddColumnIfNotExists("api_mail_logs", "attempt_count", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("api_mail_logs", "next_retry_at", "INTEGER", "0", true)
+
+		// recipient_info delivery lifecycle
+		_ = AddColumnIfNotExists("recipient_info", "engine", "VARCHAR(32)", "'postfix'", true)
+		_ = AddColumnIfNotExists("recipient_info", "injection_status", "VARCHAR(32)", "'pending'", true)
+		_ = AddColumnIfNotExists("recipient_info", "delivery_status", "VARCHAR(32)", "'pending'", true)
+		_ = AddColumnIfNotExists("recipient_info", "kumo_queue", "TEXT", "''", false)
+		_ = AddColumnIfNotExists("recipient_info", "provider_queue_id", "TEXT", "''", false)
+		_ = AddColumnIfNotExists("recipient_info", "last_delivery_event_at", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("recipient_info", "last_delivery_response", "TEXT", "''", false)
+		_ = AddColumnIfNotExists("recipient_info", "attempt_count", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("recipient_info", "next_retry_at", "INTEGER", "0", true)
 
 		//bm_contact_groups
 		_ = AddColumnIfNotExists("bm_contact_groups", "token", "VARCHAR(30)", "''", true)
@@ -249,10 +295,16 @@ func init() {
 		_ = AddColumnIfNotExists("email_templates", "chat_id", "VARCHAR(255)", "''", false)
 
 		// email_tasks
+		_ = AddColumnIfNotExists("email_tasks", "tenant_id", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("email_tasks", "delivery_engine", "VARCHAR(32)", "'postfix'", true)
+		_ = AddColumnIfNotExists("email_tasks", "sending_profile_id", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("email_tasks", "sends_count", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("email_tasks", "delivered_count", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("email_tasks", "bounced_count", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("email_tasks", "deferred_count", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("email_tasks", "queued_count", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("email_tasks", "expired_count", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("email_tasks", "complained_count", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("email_tasks", "stats_update_time", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("email_tasks", "group_id", "INTEGER", "0", true)
 		_ = AddColumnIfNotExists("email_tasks", "tag_ids", "TEXT", "''", false)
@@ -260,6 +312,13 @@ func init() {
 
 		//api_templates
 		_ = AddColumnIfNotExists("api_templates", "group_id", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("api_templates", "tenant_id", "INTEGER", "0", true)
+		_ = AddColumnIfNotExists("api_templates", "api_key_hash", "TEXT", "''", false)
+		_ = AddColumnIfNotExists("api_templates", "delivery_engine", "VARCHAR(32)", "'postfix'", true)
+		_ = AddColumnIfNotExists("api_templates", "sending_profile_id", "INTEGER", "0", true)
+
+		// api_ip_whitelist
+		_ = AddColumnIfNotExists("api_ip_whitelist", "tenant_id", "INTEGER", "0", true)
 
 		// unsubscribe_records
 		_ = DropForeignKeyIfExists("unsubscribe_records", "group_id")

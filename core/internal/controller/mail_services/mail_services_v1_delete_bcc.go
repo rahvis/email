@@ -3,6 +3,7 @@ package mail_services
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/mail_service"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -15,7 +16,7 @@ import (
 func (c *ControllerV1) DeleteBcc(ctx context.Context, req *v1.DeleteBccReq) (res *v1.DeleteBccRes, err error) {
 	res = &v1.DeleteBccRes{}
 
-	info, err := g.DB().Model("bm_bcc").Where("id", req.ID).One()
+	info, err := tenants.ScopeModel(ctx, g.DB().Model("bm_bcc"), "tenant_id").Where("id", req.ID).One()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "check record failed: {}", err.Error())))
 		return res, nil
@@ -25,7 +26,7 @@ func (c *ControllerV1) DeleteBcc(ctx context.Context, req *v1.DeleteBccReq) (res
 		return res, nil
 	}
 
-	_, err = g.DB().Model("bm_bcc").Where("id", req.ID).Delete()
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("bm_bcc"), "tenant_id").Where("id", req.ID).Delete()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "delete bcc rule failed: {}", err.Error())))
 		return res, nil

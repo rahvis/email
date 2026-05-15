@@ -4,6 +4,7 @@ import (
 	"billionmail-core/api/tags/v1"
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -16,7 +17,7 @@ func (c *ControllerV1) BatchTagContacts(ctx context.Context, req *v1.BatchTagCon
 	res = &v1.BatchTagContactsRes{}
 
 	var groupCount int
-	groupCount, err = g.DB().Model("bm_contact_groups").Where("id", req.GroupId).Count()
+	groupCount, err = tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Where("id", req.GroupId).Count()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check group")))
 		return
@@ -31,7 +32,7 @@ func (c *ControllerV1) BatchTagContacts(ctx context.Context, req *v1.BatchTagCon
 		Name    string `json:"name"`
 		GroupId int    `json:"group_id"`
 	}
-	err = g.DB().Model("bm_tags").WhereIn("id", req.TagIds).Scan(&tags)
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").WhereIn("id", req.TagIds).Scan(&tags)
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check tags")))
 		return
@@ -127,6 +128,7 @@ func (c *ControllerV1) BatchTagContacts(ctx context.Context, req *v1.BatchTagCon
 func (c *ControllerV1) batchAddTags(ctx context.Context, tx gdb.TX, groupId, tagId int, emailList []string) (processed, skipped, errors int, err error) {
 	const batchSize = 500
 	now := time.Now().Unix()
+	tenantID := tenants.CurrentTenantID(ctx)
 
 	for i := 0; i < len(emailList); i += batchSize {
 		end := i + batchSize
@@ -141,7 +143,7 @@ func (c *ControllerV1) batchAddTags(ctx context.Context, tx gdb.TX, groupId, tag
 			Id    int    `json:"id"`
 			Email string `json:"email"`
 		}
-		err = tx.Model("bm_contacts").
+		err = tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 			Fields("id, email").
 			Where("group_id", groupId).
 			WhereIn("email", currentBatch).
@@ -167,7 +169,7 @@ func (c *ControllerV1) batchAddTags(ctx context.Context, tx gdb.TX, groupId, tag
 		var existingTags []struct {
 			ContactId int `json:"contact_id"`
 		}
-		err = tx.Model("bm_contact_tags").
+		err = tenants.ScopeModel(ctx, tx.Model("bm_contact_tags"), "tenant_id").
 			Fields("contact_id").
 			Where("tag_id", tagId).
 			WhereIn("contact_id", contactIds).
@@ -187,6 +189,7 @@ func (c *ControllerV1) batchAddTags(ctx context.Context, tx gdb.TX, groupId, tag
 		for _, contact := range existingContacts {
 			if !existingTagContactIds[contact.Id] {
 				insertData = append(insertData, g.Map{
+					"tenant_id":   tenantID,
 					"contact_id":  contact.Id,
 					"tag_id":      tagId,
 					"create_time": now,
@@ -215,6 +218,7 @@ func (c *ControllerV1) batchAddTags(ctx context.Context, tx gdb.TX, groupId, tag
 func (c *ControllerV1) batchAddTagsExclude(ctx context.Context, tx gdb.TX, groupId, tagId int, excludeEmailList []string) (processed, skipped, errors int, err error) {
 	const batchSize = 500
 	now := time.Now().Unix()
+	tenantID := tenants.CurrentTenantID(ctx)
 
 	g.Log().Infof(ctx, "batchAddTagsExclude: Excluding %d emails from tagging", len(excludeEmailList))
 
@@ -230,7 +234,7 @@ func (c *ControllerV1) batchAddTagsExclude(ctx context.Context, tx gdb.TX, group
 			Id    int    `json:"id"`
 			Email string `json:"email"`
 		}
-		err = tx.Model("bm_contacts").
+		err = tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 			Fields("id, email").
 			Where("group_id", groupId).
 			Limit(batchSize).
@@ -274,7 +278,7 @@ func (c *ControllerV1) batchAddTagsExclude(ctx context.Context, tx gdb.TX, group
 		var existingTags []struct {
 			ContactId int `json:"contact_id"`
 		}
-		err = tx.Model("bm_contact_tags").
+		err = tenants.ScopeModel(ctx, tx.Model("bm_contact_tags"), "tenant_id").
 			Fields("contact_id").
 			Where("tag_id", tagId).
 			WhereIn("contact_id", targetContactIds).
@@ -295,6 +299,7 @@ func (c *ControllerV1) batchAddTagsExclude(ctx context.Context, tx gdb.TX, group
 		for _, contact := range targetContacts {
 			if !existingTagContactIds[contact.Id] {
 				insertData = append(insertData, g.Map{
+					"tenant_id":   tenantID,
 					"contact_id":  contact.Id,
 					"tag_id":      tagId,
 					"create_time": now,

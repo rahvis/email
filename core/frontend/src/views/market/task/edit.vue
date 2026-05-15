@@ -83,6 +83,18 @@
 									</n-switch>
 								</n-form-item-gi>
 							</n-grid>
+							<n-form-item :label="t('market.task.edit.deliveryEngine')" path="delivery_engine">
+								<n-radio-group v-model:value="form.delivery_engine">
+									<n-radio-button v-for="option in deliveryEngineOptions" :key="option.value" :value="option.value">
+										{{ option.label }}
+									</n-radio-button>
+								</n-radio-group>
+							</n-form-item>
+							<n-form-item v-if="form.delivery_engine === 'kumomta'" :label="t('market.task.edit.sendingProfile')" path="sending_profile_id">
+								<n-select v-model:value="form.sending_profile_id" :options="sendingProfileOptions" class="w-260px"
+									:loading="sendingProfilesLoading" :placeholder="t('market.task.edit.sendingProfilePlaceholder')" />
+								<span class="ml-12px text-desc">{{ t('market.task.edit.sendingProfileTip') }}</span>
+							</n-form-item>
 
 							<n-form-item :label="$t('market.task.edit.threads')" :show-feedback="false">
 								<n-radio-group v-model:value="threadsType" @update:value="handleUpdateThread">
@@ -165,11 +177,12 @@
 
 <script lang="ts" setup>
 import { FormRules } from 'naive-ui'
-import { useGlobalStore } from '@/store'
+import { useGlobalStore, useTenantStore } from '@/store'
 import { useElementBounding } from '@vueuse/core'
 import { confirm, isObject, Message } from '@/utils'
 import { getContactTagCount } from '@/api/modules/contacts/group'
 import { addTask, getTaskDetails, sendTestEmail, updateTask } from '@/api/modules/market/task'
+import { getSendingProfiles, type SendingProfile } from '@/api/modules/tenants'
 import { Task } from './interface'
 import { Template } from '../template/interface'
 
@@ -184,6 +197,7 @@ const route = useRoute()
 const router = useRouter()
 
 const globalStore = useGlobalStore()
+const tenantStore = useTenantStore()
 
 const formRef = useTemplateRef('formRef')
 
@@ -212,6 +226,8 @@ const form = reactive({
 	tag_logic: 'OR',
 	track_click: 1,
 	track_open: 1,
+	delivery_engine: 'postfix' as 'tenant_default' | 'kumomta' | 'postfix',
+	sending_profile_id: 0,
 })
 
 const logicOptions = [
@@ -228,6 +244,43 @@ const logicOptions = [
 		value: 'NOT',
 	},
 ]
+
+const deliveryEngineOptions = [
+	{
+		label: t('market.task.edit.enginePostfix'),
+		value: 'postfix',
+	},
+	{
+		label: t('market.task.edit.engineKumo'),
+		value: 'kumomta',
+	},
+	{
+		label: t('market.task.edit.engineTenantDefault'),
+		value: 'tenant_default',
+	},
+]
+
+const sendingProfiles = ref<SendingProfile[]>([])
+const sendingProfilesLoading = ref(false)
+const sendingProfileOptions = computed(() =>
+	sendingProfiles.value
+		.filter(profile => profile.status === 'ready' || profile.status === 'warming')
+		.map(profile => ({
+			label: `${profile.name} (${profile.kumo_pool_name || profile.egress_mode})`,
+			value: profile.id,
+		}))
+)
+
+const loadSendingProfiles = async () => {
+	if (!tenantStore.currentTenantID) return
+	sendingProfilesLoading.value = true
+	try {
+		const res = await getSendingProfiles(tenantStore.currentTenantID)
+		sendingProfiles.value = Array.isArray(res?.profiles) ? res.profiles : []
+	} finally {
+		sendingProfilesLoading.value = false
+	}
+}
 
 const rules: FormRules = {
 	full_name: {
@@ -387,6 +440,8 @@ const getParams = () => {
 		threads: form.threads,
 		start_time: startTime / 1000,
 		remark: form.remark,
+		delivery_engine: form.delivery_engine,
+		sending_profile_id: form.sending_profile_id || 0,
 		tag_ids: form.tag_ids,
 		tag_logic: form.tag_logic,
 	}
@@ -446,13 +501,24 @@ const initForm = async () => {
 		form.tag_logic = res.tag_logic
 		form.track_open = res.track_open
 		form.track_click = res.track_click
+		form.delivery_engine = res.delivery_engine || 'postfix'
+		form.sending_profile_id = res.sending_profile_id || 0
 		nextTick(() => {
 			form.tag_ids = res.tag_ids
 		})
 	}
 }
 
+loadSendingProfiles()
 initForm()
+
+watch(
+	() => tenantStore.currentTenantID,
+	() => {
+		form.sending_profile_id = 0
+		loadSendingProfiles()
+	}
+)
 </script>
 
 <style lang="scss" scoped>

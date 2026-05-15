@@ -103,6 +103,13 @@ func (s *TaskStatService) getTaskDashboard(taskId int64, domain string, startTim
 	sends := result["sends"].Int()
 	delivered := result["delivered"].Int()
 	bounced := result["bounced"].Int()
+	kumoStats := GetTaskKumoLifecycleStats(context.Background(), taskId)
+	sends += kumoStats["queued"]
+	delivered += kumoStats["delivered"]
+	bounced += kumoStats["bounced"]
+	deferred := kumoStats["deferred"]
+	expired := kumoStats["expired"]
+	complained := kumoStats["complained"]
 
 	// 通过campaign_id查打开和点击
 	campaignId := int(taskId)
@@ -116,11 +123,15 @@ func (s *TaskStatService) getTaskDashboard(taskId int64, domain string, startTim
 		Value()
 
 	stats := map[string]interface{}{
-		"sends":     sends,
-		"delivered": delivered,
-		"opened":    openedCount.Int(),
-		"clicked":   clickedCount.Int(),
-		"bounced":   bounced,
+		"sends":      sends,
+		"queued":     kumoStats["queued"],
+		"delivered":  delivered,
+		"deferred":   deferred,
+		"opened":     openedCount.Int(),
+		"clicked":    clickedCount.Int(),
+		"bounced":    bounced,
+		"expired":    expired,
+		"complained": complained,
 	}
 
 	if sends > 0 {

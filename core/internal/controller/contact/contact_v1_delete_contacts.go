@@ -3,6 +3,7 @@ package contact
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -30,7 +31,7 @@ func (c *ControllerV1) DeleteContacts(ctx context.Context, req *v1.DeleteContact
 	// Start a transaction
 	err = g.DB().Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 
-		result, err := g.DB().Model("bm_contacts").
+		result, err := tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 			Where("email IN(?)", req.Emails).
 			Where("active", req.Status).
 			Delete()

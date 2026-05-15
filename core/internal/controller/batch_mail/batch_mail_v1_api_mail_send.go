@@ -3,13 +3,16 @@ package batch_mail
 import (
 	"billionmail-core/api/batch_mail/v1"
 	"billionmail-core/internal/model/entity"
+	service_batch_mail "billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/contact"
-	"billionmail-core/internal/service/mail_service"
+	"billionmail-core/internal/service/kumo"
+	"billionmail-core/internal/service/outbound"
 	"billionmail-core/internal/service/public"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,9 +30,14 @@ func (c *ControllerV1) ApiMailSend(ctx context.Context, req *v1.ApiMailSendReq) 
 		res.SetError(gerror.New(public.LangCtx(ctx, err.Error())))
 		return res, nil
 	}
+	if err = validatePublicTenantHeader(ctx, apiTemplate); err != nil {
+		res.Code = 1001
+		res.SetError(gerror.New(public.LangCtx(ctx, err.Error())))
+		return res, nil
+	}
 
 	// check client IP
-	err = CheckClientIP(ctx, apiTemplate.Id, clientIP)
+	err = CheckClientIP(ctx, apiTemplate.TenantId, apiTemplate.Id, clientIP)
 	if err != nil {
 		res.Code = 1002
 		res.SetError(gerror.New(public.LangCtx(ctx, err.Error())))
@@ -48,7 +56,7 @@ func (c *ControllerV1) ApiMailSend(ctx context.Context, req *v1.ApiMailSendReq) 
 	//}
 
 	// 2. check email template
-	_, err = getEmailTemplateById(ctx, apiTemplate.TemplateId)
+	_, err = getEmailTemplateById(ctx, apiTemplate.TenantId, apiTemplate.TemplateId)
 	if err != nil {
 		res.Code = 1004
 		res.SetError(gerror.New(public.LangCtx(ctx, "Email template does not exist")))
@@ -64,6 +72,11 @@ func (c *ControllerV1) ApiMailSend(ctx context.Context, req *v1.ApiMailSendReq) 
 
 	// 4. process contact and group
 	if apiTemplate.GroupId > 0 {
+		if err = validateAPIContactGroup(ctx, apiTemplate.TenantId, apiTemplate.GroupId); err != nil {
+			res.Code = 1003
+			res.SetError(gerror.New(public.LangCtx(ctx, err.Error())))
+			return res, nil
+		}
 		// Add to the specified existing group
 		_, err = contact.AddContactToGroup(ctx, req.Recipient, apiTemplate.GroupId)
 		if err != nil {
@@ -87,69 +100,102 @@ func (c *ControllerV1) ApiMailSend(ctx context.Context, req *v1.ApiMailSendReq) 
 	if req.Addresser == "" {
 		req.Addresser = apiTemplate.Addresser
 	}
+	if err = validateAPISender(ctx, apiTemplate, req.Addresser); err != nil {
+		res.Code = 1005
+		res.SetError(gerror.New(public.LangCtx(ctx, err.Error())))
+		return res, nil
+	}
 
 	// 6. Join the sender queue
-	err = recordApiMailLog(ctx, apiTemplate, req.Recipient, req.Addresser, req.Attribs)
+	logID, messageID, engine, err := recordApiMailLog(ctx, apiTemplate, req.Recipient, req.Addresser, req.Attribs)
 	if err != nil {
 		res.Code = 1005
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to record email log: {}", err.Error())))
 		return res, nil
 	}
 
-	res.SetSuccess(public.LangCtx(ctx, "Email sent successfully"))
+	res.Data = v1.ApiMailSendResult{
+		Accepted:        true,
+		Status:          "queued",
+		ApiLogId:        logID,
+		MessageId:       messageID,
+		Engine:          engine,
+		InjectionStatus: kumo.InjectionStatusPending,
+		DeliveryStatus:  kumo.DeliveryStatusPending,
+	}
+	res.SetSuccess(public.LangCtx(ctx, "Email queued successfully"))
 	return res, nil
 }
 
 // 记录到日志表，状态为待发送
-func recordApiMailLog(ctx context.Context, apiTemplate *entity.ApiTemplates, recipient, addresser string, attribs map[string]string) error {
-	// 生成消息ID
-
-	sender, err := mail_service.NewEmailSenderWithLocal(addresser)
+func recordApiMailLog(ctx context.Context, apiTemplate *entity.ApiTemplates, recipient, addresser string, attribs map[string]string) (int64, string, string, error) {
+	engine, err := service_batch_mail.ResolveAPIDeliveryEngine(ctx, apiTemplate)
 	if err != nil {
-		return gerror.New(public.LangCtx(ctx, "Failed to create email sender: {}", err))
+		return 0, "", "", err
 	}
-	defer sender.Close()
-
-	messageId := sender.GenerateMessageID()
+	messageId := outbound.GenerateMessageID(addresser)
 	messageId = strings.Trim(messageId, "<>")
 
 	// 直接记录到日志表，状态为待发送
 	now := int(time.Now().Unix())
-	_, err = g.DB().Model("api_mail_logs").Insert(g.Map{
-		"api_id":        apiTemplate.Id,
-		"recipient":     recipient,
-		"message_id":    messageId, // 发送时需要加<>
-		"addresser":     addresser,
-		"status":        0, // 待发送
-		"error_message": "",
-		"send_time":     0,
-		"create_time":   now,
-		"attribs":       attribs,
+	result, err := g.DB().Model("api_mail_logs").Insert(g.Map{
+		"api_id":           apiTemplate.Id,
+		"tenant_id":        apiTemplate.TenantId,
+		"recipient":        recipient,
+		"message_id":       messageId, // 发送时需要加<>
+		"addresser":        addresser,
+		"status":           0, // 待发送
+		"engine":           engine,
+		"injection_status": "pending",
+		"delivery_status":  "pending",
+		"attempt_count":    0,
+		"next_retry_at":    0,
+		"error_message":    "",
+		"send_time":        0,
+		"create_time":      now,
+		"attribs":          attribs,
 	})
-
-	return err
+	if err != nil {
+		return 0, "", "", err
+	}
+	logID, _ := result.LastInsertId()
+	return logID, "<" + messageId + ">", engine, nil
 
 }
 
 // get API template
 func getApiTemplateByKey(ctx context.Context, apiKey string, clientIP string) (*entity.ApiTemplates, error) {
 	var apiTemplate entity.ApiTemplates
-	err := g.DB().Model("api_templates").Where("api_key", apiKey).Where("active", 1).Scan(&apiTemplate)
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return nil, gerror.New(public.LangCtx(ctx, "API key is invalid"))
+	}
+	keyHash := hashAPIKey(apiKey)
+	err := g.DB().Model("api_templates").
+		Where("(api_key_hash = ? OR api_key = ?)", keyHash, apiKey).
+		Where("active", 1).
+		Limit(1).
+		Scan(&apiTemplate)
 	if err != nil || apiTemplate.Id == 0 {
 		return nil, gerror.New(public.LangCtx(ctx, "API key is invalid"))
+	}
+	if apiTemplate.ApiKeyHash == "" {
+		_, _ = g.DB().Model("api_templates").Ctx(ctx).Where("id", apiTemplate.Id).Data(g.Map{"api_key_hash": keyHash}).Update()
 	}
 
 	return &apiTemplate, nil
 }
 
 // check API template by key and client IP
-func CheckClientIP(ctx context.Context, Id int, clientIP string) error {
+func CheckClientIP(ctx context.Context, tenantID int, Id int, clientIP string) error {
 
 	ipcount, err := g.DB().Model("api_ip_whitelist").
+		Where("tenant_id", tenantID).
 		Where("api_id", Id).Count()
 	if err == nil && ipcount > 0 {
 
 		count, err := g.DB().Model("api_ip_whitelist").
+			Where("tenant_id", tenantID).
 			Where("api_id", Id).
 			Where("ip", clientIP).
 			Count()
@@ -164,10 +210,70 @@ func CheckClientIP(ctx context.Context, Id int, clientIP string) error {
 	return nil
 }
 
+func validatePublicTenantHeader(ctx context.Context, apiTemplate *entity.ApiTemplates) error {
+	r := g.RequestFromCtx(ctx)
+	if r == nil {
+		return nil
+	}
+	header := strings.TrimSpace(r.Header.Get("X-Tenant-ID"))
+	if apiTenantHeaderAllowed(apiTemplate.TenantId, header) {
+		return nil
+	}
+	return gerror.New(public.LangCtx(ctx, "Tenant is resolved from API key and cannot be overridden"))
+}
+
+func validateAPISender(ctx context.Context, apiTemplate *entity.ApiTemplates, addresser string) error {
+	if apiSenderDomainAllowed(apiTemplate.Addresser, addresser) {
+		return nil
+	}
+	return gerror.New(public.LangCtx(ctx, "Sender domain does not match this API key"))
+}
+
+func validateAPIContactGroup(ctx context.Context, tenantID int, groupID int) error {
+	if groupID <= 0 {
+		return nil
+	}
+	var group struct {
+		Id       int `orm:"id"`
+		TenantId int `orm:"tenant_id"`
+	}
+	err := g.DB().Model("bm_contact_groups").
+		Ctx(ctx).
+		Fields("id, tenant_id").
+		Where("id", groupID).
+		Scan(&group)
+	if err != nil {
+		return err
+	}
+	if !apiGroupTenantAllowed(tenantID, group.TenantId, group.Id) {
+		return gerror.New(public.LangCtx(ctx, "Contact group does not belong to this API key tenant"))
+	}
+	return nil
+}
+
+func apiSenderDomainAllowed(templateAddresser, requestedAddresser string) bool {
+	templateDomain := outbound.SenderDomain(templateAddresser)
+	requestedDomain := outbound.SenderDomain(requestedAddresser)
+	return templateDomain == "" || requestedDomain == "" || templateDomain == requestedDomain
+}
+
+func apiTenantHeaderAllowed(templateTenantID int, header string) bool {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return true
+	}
+	requestedTenantID, err := strconv.Atoi(header)
+	return err == nil && requestedTenantID == templateTenantID
+}
+
+func apiGroupTenantAllowed(apiTenantID int, groupTenantID int, groupID int) bool {
+	return groupID > 0 && apiTenantID > 0 && groupTenantID == apiTenantID
+}
+
 // get email template
-func getEmailTemplateById(ctx context.Context, templateId int) (*entity.EmailTemplate, error) {
+func getEmailTemplateById(ctx context.Context, tenantID int, templateId int) (*entity.EmailTemplate, error) {
 	var emailTemplate entity.EmailTemplate
-	err := g.DB().Model("email_templates").Where("id", templateId).Scan(&emailTemplate)
+	err := g.DB().Model("email_templates").Where("tenant_id", tenantID).Where("id", templateId).Scan(&emailTemplate)
 	if err != nil || emailTemplate.Id == 0 {
 		return nil, gerror.New(public.LangCtx(ctx, "Email template does not exist"))
 	}
@@ -181,7 +287,11 @@ func ensureContactAndGroup(ctx context.Context, email string, apiId int) (entity
 
 	apiGroupName := fmt.Sprintf("api_group_%d", apiId)
 	var group entity.ContactGroup
-	err := g.DB().Model("bm_contact_groups").Where("name", apiGroupName).Scan(&group)
+	tenantID := 0
+	if value, valueErr := g.DB().Model("api_templates").Where("id", apiId).Value("tenant_id"); valueErr == nil && value != nil {
+		tenantID = value.Int()
+	}
+	err := g.DB().Model("bm_contact_groups").Where("tenant_id", tenantID).Where("name", apiGroupName).Scan(&group)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			group = entity.ContactGroup{}
@@ -191,6 +301,7 @@ func ensureContactAndGroup(ctx context.Context, email string, apiId int) (entity
 	}
 	if group.Id == 0 {
 		groupResult, err := g.DB().Model("bm_contact_groups").Insert(g.Map{
+			"tenant_id":   tenantID,
 			"name":        apiGroupName,
 			"description": fmt.Sprintf(public.LangCtx(ctx, "API %d automatically created contact group"), apiId),
 			"create_time": now,
@@ -204,6 +315,7 @@ func ensureContactAndGroup(ctx context.Context, email string, apiId int) (entity
 	} else {
 
 		count, err := g.DB().Model("bm_contacts").
+			Where("tenant_id", tenantID).
 			Where("email", email).
 			Where("group_id", group.Id).
 			Where("active", 0).
@@ -217,6 +329,7 @@ func ensureContactAndGroup(ctx context.Context, email string, apiId int) (entity
 	}
 
 	contactData := g.Map{
+		"tenant_id":   tenantID,
 		"email":       email,
 		"group_id":    group.Id,
 		"active":      1,

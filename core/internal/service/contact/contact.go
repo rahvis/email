@@ -3,6 +3,7 @@ package contact
 import (
 	v1 "billionmail-core/api/contact/v1"
 	"billionmail-core/internal/model/entity"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -20,6 +21,7 @@ func CreateGroup(ctx context.Context, name, description string, double_optin int
 	now := time.Now().Unix()
 	token := GfMd5Short()
 	data := g.Map{
+		"tenant_id":    tenants.CurrentTenantID(ctx),
 		"name":         name,
 		"description":  description,
 		"create_time":  int(now),
@@ -33,19 +35,19 @@ func CreateGroup(ctx context.Context, name, description string, double_optin int
 
 func GetGroup(ctx context.Context, id int) (*entity.ContactGroup, error) {
 	var group entity.ContactGroup
-	err := g.DB().Model("bm_contact_groups").Ctx(ctx).Where("id", id).Scan(&group)
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Ctx(ctx).Where("id", id).Scan(&group)
 	return &group, err
 }
 
 func GetAllGroups(ctx context.Context, keyword string) ([]*v1.ContactGroup, error) {
-	model := g.DB().Model("bm_contact_groups").
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").
 		Fields("id, name, description, create_time, update_time").
 		Order("create_time desc")
 
 	// Add keyword search (group name or description)
 	if keyword != "" {
-		model = model.WhereLike("name", "%"+keyword+"%").
-			WhereOrLike("description", "%"+keyword+"%")
+		pattern := "%" + keyword + "%"
+		model = model.Where("(name LIKE ? OR description LIKE ?)", pattern, pattern)
 	}
 
 	var groups []*v1.ContactGroup
@@ -59,17 +61,17 @@ func GetAllGroups(ctx context.Context, keyword string) ([]*v1.ContactGroup, erro
 
 func UpdateGroup(ctx context.Context, id int, data g.Map) error {
 	data["update_time"] = time.Now().Unix()
-	_, err := g.DB().Model("bm_contact_groups").Ctx(ctx).Data(data).Where("id", id).Update()
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Ctx(ctx).Data(data).Where("id", id).Update()
 	return err
 }
 
 func DeleteContactsByGroupId(ctx context.Context, groupId int) error {
-	_, err := g.DB().Model("bm_contacts").Ctx(ctx).Where("group_id", groupId).Delete()
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Ctx(ctx).Where("group_id", groupId).Delete()
 	return err
 }
 
 func DeleteGroup(ctx context.Context, id int) error {
-	_, err := g.DB().Model("bm_contact_groups").Ctx(ctx).Where("id", id).Delete()
+	_, err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Ctx(ctx).Where("id", id).Delete()
 	return err
 }
 
@@ -89,6 +91,10 @@ func BatchCreateContactsIgnoreDuplicate(ctx context.Context, contacts []*entity.
 	// Process in batches
 	totalAffected := 0
 	now := time.Now().Unix()
+	tenantID := tenants.CurrentTenantID(ctx)
+	if tenantID == 0 {
+		tenantID = tenantIDFromContactGroups(ctx, contacts)
+	}
 
 	for i := 0; i < totalBatches; i++ {
 		// Calculate start and end indices for current batch
@@ -105,6 +111,7 @@ func BatchCreateContactsIgnoreDuplicate(ctx context.Context, contacts []*entity.
 		var data []g.Map
 		for _, contact := range currentBatch {
 			data = append(data, g.Map{
+				"tenant_id":   tenantID,
 				"email":       contact.Email,
 				"group_id":    contact.GroupId,
 				"active":      contact.Active,
@@ -144,12 +151,12 @@ func BatchCreateContacts(ctx context.Context, contacts []*entity.Contact) error 
 
 func GetContactsByGroup(ctx context.Context, groupId int) ([]*entity.Contact, error) {
 	var contacts []*entity.Contact
-	err := g.DB().Model("bm_contacts").Ctx(ctx).Where("group_id", groupId).Scan(&contacts)
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Ctx(ctx).Where("group_id", groupId).Scan(&contacts)
 	return contacts, err
 }
 
 func CountContactsByGroup(ctx context.Context, groupId int, active int) (int, error) {
-	model := g.DB().Model("bm_contacts").Ctx(ctx).Where("group_id", groupId)
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Ctx(ctx).Where("group_id", groupId)
 	if active >= 0 {
 		model = model.Where("active", active)
 	}
@@ -157,7 +164,7 @@ func CountContactsByGroup(ctx context.Context, groupId int, active int) (int, er
 }
 
 func CheckGroupNameExists(ctx context.Context, name string) (bool, error) {
-	count, err := g.DB().Model("bm_contact_groups").Ctx(ctx).Where("name", name).Count()
+	count, err := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Ctx(ctx).Where("name", name).Count()
 	if err != nil {
 		return false, err
 	}
@@ -175,11 +182,11 @@ func ContactsGroupWithPage(ctx context.Context, page, pageSize int, keyword stri
 
 	keyword = strings.TrimSpace(keyword)
 
-	model := g.DB().Model("bm_contact_groups").Ctx(ctx)
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_contact_groups"), "tenant_id").Ctx(ctx)
 
 	if keyword != "" {
-		model = model.WhereLike("name", "%"+keyword+"%").
-			WhereOrLike("description", "%"+keyword+"%")
+		pattern := "%" + keyword + "%"
+		model = model.Where("(name LIKE ? OR description LIKE ?)", pattern, pattern)
 	}
 
 	total, err := model.Count()
@@ -197,7 +204,7 @@ func ContactsGroupWithPage(ctx context.Context, page, pageSize int, keyword stri
 }
 
 func GetContactsWithPage(ctx context.Context, page, pageSize int, groupId int, keyword string, status int) (total int, list []*entity.Contact, err error) {
-	model := g.DB().Model("bm_contacts").Safe()
+	model := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Safe()
 
 	// Add query conditions
 	if groupId > 0 {
@@ -234,7 +241,7 @@ func GetContactsWithPage(ctx context.Context, page, pageSize int, groupId int, k
 		conditions["active"] = status
 	}
 
-	subQuery := g.DB().Model("bm_contacts").
+	subQuery := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").
 		Fields("DISTINCT ON (email) id,attribs, status")
 
 	if len(conditions) > 0 {
@@ -249,7 +256,7 @@ func GetContactsWithPage(ctx context.Context, page, pageSize int, groupId int, k
 
 	list = make([]*entity.Contact, 0)
 	//Where("c.id IN (?)", subQuery).
-	err = g.DB().Model("bm_contacts c").
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts c"), "c.tenant_id").
 		Where("c.id IN (SELECT id FROM (?))", subQuery).
 		Order("c.create_time DESC").
 		Page(page, pageSize).
@@ -265,7 +272,7 @@ func GetContactsWithPage(ctx context.Context, page, pageSize int, groupId int, k
 func GetContactGroupsInfo(ctx context.Context, email string, status int) ([]*entity.ContactGroup, error) {
 	var groups []*entity.ContactGroup
 
-	err := g.DB().Model("bm_contacts c").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts c"), "c.tenant_id").
 		LeftJoin("bm_contact_groups g", "c.group_id = g.id").
 		Fields("DISTINCT g.id, g.name, g.description, g.create_time, g.update_time").
 		Where("c.email", email).
@@ -289,7 +296,7 @@ func GetContactsTrend(ctx context.Context, startTime, endTime time.Time, groupId
 
 	var trends []*ContactTrend
 
-	db := g.DB().Model("bm_contacts").
+	db := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").
 		Fields(
 			"to_char(to_timestamp(create_time), 'YYYY-MM') as month",
 			"SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) as subscribe_count",
@@ -322,7 +329,7 @@ func UpdateContactsGroups(ctx context.Context, emails []string, status int, newG
 		Status  int               `json:"status"`
 	}
 
-	err := g.DB().Model("bm_contacts").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").
 		Where("email IN(?)", emails).
 		Fields("email, attribs, status").
 		Group("email, attribs, status").
@@ -346,7 +353,7 @@ func UpdateContactsGroups(ctx context.Context, emails []string, status int, newG
 	}
 
 	// 1. delete old group relations
-	_, err = g.DB().Model("bm_contacts").
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").
 		Where("email IN(?)", emails).
 		Where("active", status).
 		Delete()
@@ -356,6 +363,7 @@ func UpdateContactsGroups(ctx context.Context, emails []string, status int, newG
 
 	// 2. create new group relations
 	now := time.Now().Unix()
+	tenantID := tenants.CurrentTenantID(ctx)
 	var data []g.Map
 	for _, email := range emails {
 
@@ -370,6 +378,7 @@ func UpdateContactsGroups(ctx context.Context, emails []string, status int, newG
 
 		for _, groupId := range newGroupIds {
 			data = append(data, g.Map{
+				"tenant_id":   tenantID,
 				"email":       email,
 				"group_id":    groupId,
 				"active":      status,
@@ -406,7 +415,7 @@ func GetGroupContactCount(ctx context.Context, groupIds []int) (int, error) {
 		Count int `json:"count"`
 	}
 
-	err := g.DB().Model("bm_contacts").
+	err := tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").
 		Fields("COUNT(DISTINCT email) as count").
 		WhereIn("group_id", groupIds).
 		Where("active", 1). // Only count active contacts
@@ -430,6 +439,10 @@ func BatchCreateContactsWithOverwrite(ctx context.Context, contacts []*entity.Co
 
 	totalSuccessCount := 0
 	now := time.Now().Unix()
+	tenantID := tenants.CurrentTenantID(ctx)
+	if tenantID == 0 {
+		tenantID = tenantIDFromContactGroups(ctx, contacts)
+	}
 
 	for i := 0; i < totalBatches; i++ {
 		startIdx := i * batchSize
@@ -458,7 +471,7 @@ func BatchCreateContactsWithOverwrite(ctx context.Context, contacts []*entity.Co
 				}
 
 				var existingContacts []*entity.Contact
-				err := tx.Model("bm_contacts").
+				err := tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 					WhereIn("email", emails).
 					Where("group_id", groupId).
 					Scan(&existingContacts)
@@ -483,7 +496,7 @@ func BatchCreateContactsWithOverwrite(ctx context.Context, contacts []*entity.Co
 						}
 					}
 
-					_, err := tx.Model("bm_contacts").
+					_, err := tenants.ScopeModel(ctx, tx.Model("bm_contacts"), "tenant_id").
 						Where("id", existing.Id).
 						Data(updateData).
 						Update()
@@ -505,6 +518,7 @@ func BatchCreateContactsWithOverwrite(ctx context.Context, contacts []*entity.Co
 						}
 
 						newContacts = append(newContacts, map[string]interface{}{
+							"tenant_id":   tenantID,
 							"email":       contact.Email,
 							"group_id":    groupId,
 							"active":      contact.Active,
@@ -546,9 +560,21 @@ func GfMd5Short() string {
 
 // AddContactToGroup adds a contact to a specified group if it doesn't already exist.
 func AddContactToGroup(ctx context.Context, email string, groupId int) (*entity.Contact, error) {
+	tenantID := tenants.CurrentTenantID(ctx)
+	if tenantID == 0 {
+		tenantID = tenantIDFromGroup(ctx, groupId)
+	}
+	if tenantID == 0 {
+		return nil, fmt.Errorf("tenant context is required")
+	}
+
 	// Check if the contact already exists in the group
 	var existingContact entity.Contact
-	err := g.DB().Model("bm_contacts").Ctx(ctx).Where("email", email).Where("group_id", groupId).Scan(&existingContact)
+	err := g.DB().Model("bm_contacts").Ctx(ctx).
+		Where("tenant_id", tenantID).
+		Where("email", email).
+		Where("group_id", groupId).
+		Scan(&existingContact)
 	if err != nil && err != sql.ErrNoRows {
 		g.Log().Errorf(ctx, "Failed to check for existing contact %s in group %d: %v", email, groupId, err)
 		return nil, err
@@ -568,7 +594,14 @@ func AddContactToGroup(ctx context.Context, email string, groupId int) (*entity.
 		CreateTime: int(time.Now().Unix()),
 	}
 
-	result, err := g.DB().Model("bm_contacts").Ctx(ctx).Data(newContact).FieldsEx("id").Insert()
+	result, err := g.DB().Model("bm_contacts").Ctx(ctx).Data(g.Map{
+		"tenant_id":   tenantID,
+		"email":       newContact.Email,
+		"group_id":    newContact.GroupId,
+		"active":      newContact.Active,
+		"status":      newContact.Status,
+		"create_time": newContact.CreateTime,
+	}).Insert()
 	if err != nil {
 		g.Log().Errorf(ctx, "Failed to insert new contact %s into group %d: %v", email, groupId, err)
 		return nil, err
@@ -582,4 +615,26 @@ func AddContactToGroup(ctx context.Context, email string, groupId int) (*entity.
 	newContact.Id = int(newId)
 
 	return newContact, nil
+}
+
+func tenantIDFromContactGroups(ctx context.Context, contacts []*entity.Contact) int64 {
+	for _, contact := range contacts {
+		if contact.GroupId > 0 {
+			if tenantID := tenantIDFromGroup(ctx, contact.GroupId); tenantID > 0 {
+				return tenantID
+			}
+		}
+	}
+	return 0
+}
+
+func tenantIDFromGroup(ctx context.Context, groupID int) int64 {
+	if groupID <= 0 {
+		return 0
+	}
+	value, err := g.DB().Model("bm_contact_groups").Ctx(ctx).Where("id", groupID).Value("tenant_id")
+	if err != nil || value == nil {
+		return 0
+	}
+	return value.Int64()
 }

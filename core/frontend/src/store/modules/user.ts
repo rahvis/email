@@ -49,6 +49,7 @@ export default defineStore(
 					try {
 						await logoutApi(login.value.refresh_token)
 					} finally {
+						localStorage.removeItem('TenantStore')
 						resetLoginInfo()
 						router.push('/')
 					}

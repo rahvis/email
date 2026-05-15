@@ -4,6 +4,7 @@ import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/mail_service"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 	"strings"
@@ -17,7 +18,7 @@ import (
 func (c *ControllerV1) EditMailForward(ctx context.Context, req *v1.EditMailForwardReq) (res *v1.EditMailForwardRes, err error) {
 	res = &v1.EditMailForwardRes{}
 
-	count, err := g.DB().Model("alias").Where("address=?", req.Address).Count()
+	count, err := tenants.ScopeModel(ctx, g.DB().Model("alias"), "tenant_id").Where("address=?", req.Address).Count()
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "check address failed: {}", err.Error())))
 		return res, nil
@@ -46,7 +47,7 @@ func (c *ControllerV1) EditMailForward(ctx context.Context, req *v1.EditMailForw
 		update["goto"] = strings.Join(forwardUsers, ",")
 	}
 
-	_, err = g.DB().Model("alias").Where("address=?", req.Address).Update(update)
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("alias"), "tenant_id").Where("address=?", req.Address).Update(update)
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "modify mail forward failed: {}", err.Error())))
 		return res, nil

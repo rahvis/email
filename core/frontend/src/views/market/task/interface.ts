@@ -19,6 +19,8 @@ export interface Task {
 	update_time: number
 	remark: string
 	active: number
+	delivery_engine: 'tenant_default' | 'kumomta' | 'postfix'
+	sending_profile_id: number
 	groups: Group[]
 	progress: number
 	sent_count: number
@@ -26,6 +28,10 @@ export interface Task {
 	template_name: string
 	success_count: number
 	error_count: number
+	queuedCount: number
+	deferredCount: number
+	expiredCount: number
+	complainedCount: number
 	estimated_time_with_warmup: number
 	group_id: number
 	group_name: string

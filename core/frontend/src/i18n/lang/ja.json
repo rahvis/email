@@ -139,10 +139,14 @@
 		}
 	},
 	"overview": {
+		"queued": "キュー済み",
 		"delivered": "配信済み",
+		"deferred": "延期",
 		"opened": "開封済み",
 		"clicked": "クリック済み",
 		"bounced": "バウンス（送信失敗）",
+		"expired": "期限切れ",
+		"complained": "苦情",
 		"delayedQueue": "遅延キュー",
 		"mailProviders": "メールプロバイダー",
 		"sendStats": "送信統計",
@@ -331,6 +335,13 @@
 				"ipWarmupTip": "有効にすると送信速度が制限されます",
 				"trackClick": "クリック追跡",
 				"trackOpen": "開封追跡",
+				"deliveryEngine": "配信エンジン",
+				"enginePostfix": "ローカル Postfix",
+				"engineKumo": "KumoMTA",
+				"engineTenantDefault": "テナント既定",
+				"sendingProfile": "送信プロファイル",
+				"sendingProfilePlaceholder": "プロファイル ID",
+				"sendingProfileTip": "テナントプロファイル設定までは任意",
 				"preview": {
 					"empty": "プレビューするメールテンプレートを選択してください"
 				},
@@ -1441,11 +1452,18 @@
 		"columns": {
 			"apiName": "API Name",
 			"apiKey": "API Key",
+			"deliveryEngine": "Engine",
 			"sendCount": "Send Count",
 			"openRate": "Open Rate",
 			"clickRate": "Click Rate",
 			"bounceRate": "Bounce Rate",
+			"webhook": "Webhook",
 			"status": "Status"
+		},
+		"webhook": {
+			"healthy": "{seconds}s lag",
+			"waiting": "No events",
+			"local": "Local"
 		},
 		"statusLabels": {
 			"active": "Active",

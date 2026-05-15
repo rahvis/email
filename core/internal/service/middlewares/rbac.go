@@ -24,7 +24,7 @@ func PathToRouteInfo(path string) (module, action, resource string) {
 		"contact", "email_template", "batch_mail", "files",
 		"abnormal_recipient", "languages", "mail_services",
 		"relay", "settings", "subscribe_list", "operation_log",
-		"askai", "tags", "video_outreach",
+		"askai", "tags", "video_outreach", "kumo", "tenants",
 	}
 	for _, m := range modules {
 		if strings.Contains(path, "/"+m+"/") || strings.HasSuffix(path, "/"+m) {
@@ -79,6 +79,10 @@ func (m *RBACMiddleware) PermissionCheck(r *ghttp.Request) {
 		r.URL.Path == "/api/get_validate_code" ||
 		r.URL.Path == "/api/languages/get" ||
 		r.URL.Path == "/api/languages/set" ||
+		r.URL.Path == "/api/tenants/current" ||
+		r.URL.Path == "/api/tenants" ||
+		r.URL.Path == "/api/tenants/switch" ||
+		r.URL.Path == "/api/kumo/events" ||
 		r.URL.Path == "/api/unsubscribe" ||
 		r.URL.Path == "/api/unsubscribe_new" ||
 		r.URL.Path == "/api/unsubscribe/user_group" ||

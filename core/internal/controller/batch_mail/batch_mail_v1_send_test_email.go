@@ -6,6 +6,7 @@ import (
 	"billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/domains"
 	"billionmail-core/internal/service/mail_service"
+	"billionmail-core/internal/service/tenants"
 	"database/sql"
 	"strings"
 
@@ -32,6 +33,7 @@ func (c *ControllerV1) SendTestEmail(ctx context.Context, req *v1.SendTestEmailR
 	var template entity.EmailTemplate
 
 	err = g.DB().Model("email_templates").
+		Where("tenant_id", tenants.CurrentTenantID(ctx)).
 		Where("id", req.TemplateId).
 		Scan(&template)
 
@@ -56,7 +58,7 @@ func (c *ControllerV1) SendTestEmail(ctx context.Context, req *v1.SendTestEmailR
 
 	var contact entity.Contact
 	subject := req.Subject
-	err = g.DB().Model("bm_contacts").Where("email", req.Recipient).Scan(&contact)
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_contacts"), "tenant_id").Where("email", req.Recipient).Scan(&contact)
 	if err != nil && err != sql.ErrNoRows {
 		g.Log().Error(ctx, "Failed to get contact: %v", err)
 	}

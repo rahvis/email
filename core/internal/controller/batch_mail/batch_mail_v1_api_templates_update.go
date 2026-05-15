@@ -3,7 +3,10 @@ package batch_mail
 import (
 	"billionmail-core/api/batch_mail/v1"
 	"billionmail-core/internal/consts"
+	"billionmail-core/internal/model/entity"
+	service_batch_mail "billionmail-core/internal/service/batch_mail"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"net"
 	"strings"
@@ -15,19 +18,27 @@ import (
 
 func (c *ControllerV1) ApiTemplatesUpdate(ctx context.Context, req *v1.ApiTemplatesUpdateReq) (res *v1.ApiTemplatesUpdateRes, err error) {
 	res = &v1.ApiTemplatesUpdateRes{}
+	tenantID, err := tenants.RequireTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// verify if API exists
 
-	count, err := g.DB().Model("api_templates").Where("id", req.ID).Count()
+	count, err := g.DB().Model("api_templates").Where("id", req.ID).Where("tenant_id", tenantID).Count()
 	if err != nil {
 		return nil, err
 	}
 	if count == 0 {
 		return nil, gerror.New(public.LangCtx(ctx, "API does not exist"))
 	}
+	var current entity.ApiTemplates
+	if err = g.DB().Model("api_templates").Where("id", req.ID).Where("tenant_id", tenantID).Scan(&current); err != nil {
+		return nil, err
+	}
 
 	// verify if template exists
-	count, err = g.DB().Model("email_templates").Where("id", req.TemplateId).Count()
+	count, err = g.DB().Model("email_templates").Where("id", req.TemplateId).Where("tenant_id", tenantID).Count()
 	if err != nil {
 		return nil, err
 	}
@@ -49,22 +60,34 @@ func (c *ControllerV1) ApiTemplatesUpdate(ctx context.Context, req *v1.ApiTempla
 	now := time.Now().Unix()
 
 	updateMap := g.Map{
-		"api_name":    req.ApiName,
-		"template_id": req.TemplateId,
-		"subject":     req.Subject,
-		"addresser":   req.Addresser,
-		"full_name":   req.FullName,
-		"unsubscribe": req.Unsubscribe,
-		"track_open":  req.TrackOpen,
-		"track_click": req.TrackClick,
-		"active":      req.Active,
-		"expire_time": req.ExpireTime,
-		"update_time": now,
-		"group_id":   req.GroupId,
+		"api_name":           req.ApiName,
+		"template_id":        req.TemplateId,
+		"subject":            req.Subject,
+		"addresser":          req.Addresser,
+		"full_name":          req.FullName,
+		"unsubscribe":        req.Unsubscribe,
+		"track_open":         req.TrackOpen,
+		"track_click":        req.TrackClick,
+		"delivery_engine":    service_batch_mail.NormalizeAPIDeliveryEngineForAPI(req.DeliveryEngine),
+		"sending_profile_id": req.SendingProfileId,
+		"active":             req.Active,
+		"expire_time":        req.ExpireTime,
+		"update_time":        now,
+		"group_id":           req.GroupId,
+	}
+	if req.ResetKey {
+		apiKey, keyErr := generateApiKey()
+		if keyErr != nil {
+			return nil, keyErr
+		}
+		updateMap["api_key"] = apiKey
+		updateMap["api_key_hash"] = hashAPIKey(apiKey)
+		updateMap["last_key_update_time"] = now
 	}
 
 	_, err = tx.Model("api_templates").
 		Where("id", req.ID).
+		Where("tenant_id", tenantID).
 		Update(updateMap)
 
 	if err != nil {
@@ -74,6 +97,7 @@ func (c *ControllerV1) ApiTemplatesUpdate(ctx context.Context, req *v1.ApiTempla
 	// ip
 	_, err = tx.Model("api_ip_whitelist").
 		Where("api_id", req.ID).
+		Where("tenant_id", tenantID).
 		Delete()
 	if err != nil {
 		g.Log().Errorf(ctx, "[API Update] Failed to delete IP whitelist: %v", err)
@@ -94,6 +118,7 @@ func (c *ControllerV1) ApiTemplatesUpdate(ctx context.Context, req *v1.ApiTempla
 			}
 			_, err = tx.Model("api_ip_whitelist").Insert(g.Map{
 				"api_id":      req.ID,
+				"tenant_id":   current.TenantId,
 				"ip":          strings.TrimSpace(ip),
 				"create_time": now,
 			})

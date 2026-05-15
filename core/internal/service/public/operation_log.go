@@ -1,6 +1,7 @@
 package public
 
 import (
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -69,12 +70,13 @@ func WriteLog(ctx context.Context, params LogParams) error {
 	}
 
 	_, err := g.DB().Model("bm_operation_logs").Data(g.Map{
-		"user_id": userId,
-		"type":    params.Type,
-		"log":     params.Log,
-		"ip":      ip,
-		"info":    filePath,
-		"addtime": time.Now().Unix(),
+		"tenant_id": tenants.CurrentTenantID(ctx),
+		"user_id":   userId,
+		"type":      params.Type,
+		"log":       params.Log,
+		"ip":        ip,
+		"info":      filePath,
+		"addtime":   time.Now().Unix(),
 	}).InsertIgnore()
 	return err
 }

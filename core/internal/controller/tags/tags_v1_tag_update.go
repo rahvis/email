@@ -3,6 +3,7 @@ package tags
 import (
 	"billionmail-core/internal/consts"
 	"billionmail-core/internal/service/public"
+	"billionmail-core/internal/service/tenants"
 	"context"
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -20,7 +21,7 @@ func (c *ControllerV1) TagUpdate(ctx context.Context, req *v1.TagUpdateReq) (res
 		Id      int `json:"id"`
 		GroupId int `json:"group_id"`
 	}
-	err = g.DB().Model("bm_tags").Where("id", req.Id).Scan(&tag)
+	err = tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").Where("id", req.Id).Scan(&tag)
 	if err != nil {
 		res.SetError(gerror.New(public.LangCtx(ctx, "Failed to check tag")))
 		return
@@ -32,7 +33,7 @@ func (c *ControllerV1) TagUpdate(ctx context.Context, req *v1.TagUpdateReq) (res
 
 	// 检查标签名是否重复（排除自己）
 	var nameCount int
-	nameCount, err = g.DB().Model("bm_tags").
+	nameCount, err = tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").
 		Where("group_id", tag.GroupId).
 		Where("name", req.Name).
 		Where("id !=", req.Id).
@@ -47,7 +48,7 @@ func (c *ControllerV1) TagUpdate(ctx context.Context, req *v1.TagUpdateReq) (res
 	}
 
 	// 更新标签
-	_, err = g.DB().Model("bm_tags").
+	_, err = tenants.ScopeModel(ctx, g.DB().Model("bm_tags"), "tenant_id").
 		Ctx(ctx).
 		Where("id", req.Id).
 		Update(g.Map{
