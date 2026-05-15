@@ -137,10 +137,38 @@ describe('KumoMTA settings page', () => {
 
 		expect(wrapper.text()).toContain('KumoMTA Connection')
 		expect(wrapper.text()).toContain('Connected')
+		expect(wrapper.text()).toContain('Configuration')
+		expect(wrapper.text()).toContain('Policy Preview')
+		expect(wrapper.find('.kumo-page').classes()).toContain('app-card')
 		expect(mockGetKumoConfig).toHaveBeenCalled()
 		expect(mockGetKumoStatus).toHaveBeenCalled()
 		expect(mockGetKumoMetrics).toHaveBeenCalled()
 		expect(mockGetKumoRuntime).toHaveBeenCalled()
+	})
+
+	it('switches between KumoMTA section menu items', async () => {
+		mockGetKumoStatus.mockResolvedValue({
+			connected: true,
+			last_ok_at: 1,
+			last_error_at: 0,
+			last_error: '',
+			inject_latency_ms: 34,
+			metrics_latency_ms: 72,
+			webhook_last_seen_at: 1,
+			webhook_lag_seconds: 3,
+		})
+
+		const wrapper = mount(KumoSettings, { global: { stubs } })
+		await flushPromises()
+
+		const configurationButton = wrapper
+			.findAll('button.section-menu-item')
+			.find(button => button.text().includes('Configuration'))
+
+		expect(configurationButton).toBeTruthy()
+		await configurationButton!.trigger('click')
+
+		expect(configurationButton!.classes()).toContain('is-active')
 	})
 
 	it('renders disconnected state', async () => {

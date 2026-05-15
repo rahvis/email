@@ -4,10 +4,6 @@
 			<n-button class="icon-btn" :bordered="false" @click="handleCollapse">
 				<i class="icon" :class="isCollapse ? 'i-mdi-menu-close' : 'i-mdi-menu-open'"></i>
 			</n-button>
-			<n-button type="primary" secondary class="header-pill" @click="handleGoIssues">
-				{{ t('layout.header.submit') }}
-				<i class="i-mdi:arrow-right ml-1px"></i>
-			</n-button>
 		</div>
 
 		<div class="header-right">
@@ -30,9 +26,6 @@
 					<i class="icon i-mdi-user-outline"></i>
 				</n-button>
 			</n-dropdown>
-			<n-button type="primary" text class="header-version" @click="handleGoVersion">
-				{{ version }}
-			</n-button>
 		</div>
 	</n-layout-header>
 </template>
@@ -43,9 +36,6 @@ import { DropdownOption } from 'naive-ui'
 import { useUserStore, useGlobalStore, useThemeStore } from '@/store'
 import InstanceSwitcher from './InstanceSwitcher.vue'
 import TenantSwitcher from './TenantSwitcher.vue'
-import { getVersionInfo } from '@/api/modules/settings'
-import { isObject } from '@/utils'
-import { BRAND } from '@/config/brand'
 
 defineProps({
 	top: {
@@ -55,8 +45,6 @@ defineProps({
 })
 
 const { t } = useI18n()
-
-const version = ref('--')
 
 const userStore = useUserStore()
 
@@ -68,10 +56,6 @@ const { theme } = storeToRefs(themeStore)
 
 const handleCollapse = () => {
 	globalStore.setCollapse()
-}
-
-const handleGoIssues = () => {
-	window.open(BRAND.issuesUrl)
 }
 
 const langOptions = ref<DropdownOption[]>([])
@@ -100,10 +84,6 @@ const handleUserAction = (key: string) => {
 	}
 }
 
-const handleGoVersion = () => {
-	window.open(BRAND.releasesUrl)
-}
-
 const getLangOptions = async () => {
 	langOptions.value = langList.value.map(item => {
 		return {
@@ -113,15 +93,7 @@ const getLangOptions = async () => {
 	})
 }
 
-const getVersion = async () => {
-	const res = await getVersionInfo()
-	if (isObject<{ version: string }>(res)) {
-		version.value = res.version ? `v${res.version}` : '--'
-	}
-}
-
 onMounted(() => {
-	getVersion()
 	getLangOptions()
 })
 </script>
@@ -167,12 +139,4 @@ onMounted(() => {
 	--n-ripple-color: none;
 }
 
-.header-pill {
-	--n-height: 34px;
-}
-
-.header-version {
-	font-size: 14px;
-	font-weight: 400;
-}
 </style>
