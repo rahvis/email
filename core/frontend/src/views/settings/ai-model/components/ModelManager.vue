@@ -152,33 +152,48 @@ function handleAddModel() {
 .manager-wrapper {
 	// height: 480px;
 	display: grid;
-	grid-template-columns: 230px 1fr;
+	grid-template-columns: 300px minmax(0, 1fr);
+	width: 100%;
+	min-width: 0;
 	/* border-top: 1px solid var(--color-border-2);
         border-bottom: 1px solid var(--color-border-2); */
 
 	.left-provider {
 		height: 100%;
+		min-width: 0;
+		overflow: hidden;
 		display: grid;
 		grid-template-rows: 1fr 60px;
 		border-right: 1px solid var(--color-border-2);
 
 		.provider-list {
 			@include base.col-flex;
+			align-items: stretch;
 			gap: 0;
+			width: 100%;
+			min-width: 0;
+			overflow: hidden;
 
 			.provider-item {
 				height: 50px;
 				width: 100%;
+				min-width: 0;
+				overflow: hidden;
 				box-sizing: border-box;
-				padding-left: 10px;
+				padding: 0 18px 0 16px;
 				border-bottom: 1px solid var(--color-border-1);
 				@include base.row-flex-start;
-				gap: 5px;
+				gap: 8px;
 				align-items: center;
 				transition: 0.15s all ease-in-out;
 				cursor: pointer;
 
 				.tit {
+					flex: 1 1 auto;
+					min-width: 0;
+					overflow: hidden;
+					text-overflow: ellipsis;
+					white-space: nowrap;
 					font-size: 14px;
 					font-weight: bold;
 				}
@@ -193,11 +208,13 @@ function handleAddModel() {
 
 				.item-icon {
 					width: 32px;
+					flex: 0 0 32px;
 					@include base.row-flex-center;
 				}
 
 				.status {
 					display: block;
+					flex: 0 0 8px;
 					width: 8px;
 					height: 8px;
 					background: var(--color-text-3);
@@ -212,14 +229,31 @@ function handleAddModel() {
 
 		.add-privider {
 			@include base.row-flex-center;
+			min-width: 0;
+			padding: 0 18px;
+			overflow: hidden;
+
+			:deep(.n-button) {
+				width: 100%;
+				min-width: 0;
+			}
+
+			:deep(.n-button__content) {
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
 		}
 	}
 
 	.right-configuration {
-		padding: 0 15px 15px;
+		min-width: 0;
+		padding: 0 20px 20px 24px;
 
 		.top-switch {
 			height: 50px;
+			min-width: 0;
 			@include base.row-flex;
 			align-items: center;
 			justify-content: space-between;
@@ -229,8 +263,13 @@ function handleAddModel() {
 				@include base.row-flex-start;
 				align-items: center;
 				gap: 5px;
+				min-width: 0;
 
 				.tit {
+					min-width: 0;
+					overflow: hidden;
+					text-overflow: ellipsis;
+					white-space: nowrap;
 					font-size: 14px;
 					font-weight: bold;
 				}
@@ -304,6 +343,35 @@ function handleAddModel() {
 					}
 				}
 			}
+		}
+	}
+
+	@media (max-width: 900px) {
+		grid-template-columns: minmax(0, 1fr);
+
+		.left-provider {
+			grid-template-rows: auto auto;
+			border-right: 0;
+			border-bottom: 1px solid var(--color-border-2);
+
+			.provider-list {
+				flex-direction: row;
+				overflow-x: auto;
+			}
+
+			.provider-item {
+				flex: 0 0 180px;
+				border-right: 1px solid var(--color-border-1);
+				border-bottom: 0;
+			}
+
+			.add-privider {
+				padding: 12px 0 16px;
+			}
+		}
+
+		.right-configuration {
+			padding: 16px 0 0;
 		}
 	}
 }

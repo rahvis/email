@@ -171,6 +171,24 @@ onBeforeUnmount(() => {
 
 .section-panel :deep(.n-card-header) {
 	padding-top: 0;
+	padding-left: 0;
+	padding-right: 0;
+	text-align: left;
+}
+
+.section-panel :deep(.n-card-header__main) {
+	display: flex;
+	justify-content: flex-start;
+	text-align: left;
+}
+
+.section-panel :deep(.n-card-header .flex.items-center) {
+	justify-content: flex-start;
+	text-align: left;
+}
+
+.section-panel :deep(.n-card-header .n-icon) {
+	display: none;
 }
 
 @media (max-width: 900px) {

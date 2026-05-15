@@ -171,6 +171,7 @@ function switchToTab(tab: string) {
 	height: calc(100% - 48px);
 	box-sizing: border-box;
 	padding: 24px;
+	min-width: 0;
 }
 
 .footer-tool {
@@ -221,12 +222,16 @@ function switchToTab(tab: string) {
 	height: 46px;
 	border-bottom: 1px solid var(--color-border-1);
 	@include base.row-flex-start;
+	overflow-x: auto;
+	overflow-y: hidden;
 
 	.tab-item {
+		flex: 0 0 auto;
 		height: 100%;
 		@include base.col-flex-center;
 		font-size: 14px;
 		padding: 0 20px;
+		white-space: nowrap;
 		cursor: pointer;
 		transition: 0.1s color ease-in-out;
 
@@ -244,8 +249,15 @@ function switchToTab(tab: string) {
 
 // Dynamic content
 .dynamic-content {
+	min-width: 0;
 	height: calc(100vh - 240px);
 	box-sizing: border-box;
-	padding: 20px;
+	padding: 20px 0 96px;
+}
+
+.dynamic-content :deep(.n-scrollbar-content) {
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
 }
 </style>

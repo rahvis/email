@@ -7,6 +7,7 @@ const route: RouteRecordRaw = {
 	component: Layout,
 	meta: {
 		sort: 7,
+		hidden: true,
 		key: 'video-outreach',
 		title: 'Video Outreach',
 		titleKey: 'layout.menu.videoOutreach',
